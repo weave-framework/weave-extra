@@ -66,8 +66,14 @@ export interface TablePreferences {
 }
 
 export interface TablePluginOptions<TRow> {
-  /** The authored column configuration — typically a `*.columns.json` loaded as-is. */
-  columns: readonly ColumnConfig[];
+  /**
+   * The authored column configuration — typically a `*.columns.json` loaded as-is.
+   *
+   * Pass a getter (a signal, a `resource`, any reactive read) when the file is fetched at runtime:
+   * the plugin re-validates and re-resolves whenever it changes, so it is safe to construct with an
+   * empty array and hand over the real set once it lands.
+   */
+  columns: readonly ColumnConfig[] | (() => readonly ColumnConfig[]);
   /** Cell renderers by type name. A Weave component satisfies the type with no wrapper. */
   cells?: Record<string, CellSource<TRow>>;
   /** Row actions and context-menu entries — one list. */
@@ -126,27 +132,53 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     ...((options.cells ?? {}) as Record<string, CellRenderer<TRow>>),
   };
 
-  // One check, at construction, listing everything wrong at once.
   const knownTypes: string[] = [...new Set([...BUILT_IN_TYPES, ...Object.keys(options.cells ?? {})])];
-  validateColumns(options.columns, knownTypes);
 
-  const base: ResolvedColumn[] = resolveColumns(options.columns, translate);
-  const defaults: TablePreferences = {
-    order: base.map((column) => column.name),
-    hidden: base.filter((column) => !column.visible).map((column) => column.name),
-  };
+  /**
+   * The configuration, read reactively.
+   *
+   * A grid's columns commonly arrive from a file — a `*.columns.json` fetched at runtime, so that a
+   * deployment can change what a screen shows without a rebuild. That means the plugin cannot resolve
+   * them once at construction: it may be built with nothing and handed the real set a moment later.
+   * Passing a getter (a signal, a resource, anything that reads reactively) is how that arrives, and
+   * everything below derives from it.
+   */
+  const configs: () => readonly ColumnConfig[] =
+    typeof options.columns === 'function' ? options.columns : (): readonly ColumnConfig[] => options.columns as readonly ColumnConfig[];
 
-  const order: Signal<string[]> = signal<string[]>(options.preferences?.order ?? defaults.order!);
-  const hidden: Signal<string[]> = signal<string[]>(options.preferences?.hidden ?? defaults.hidden!);
+  // Validated on every change of the source, not once at construction — a config that arrives late is
+  // exactly as capable of being wrong as one that was there from the start.
+  const base = computed<ResolvedColumn[]>(() => {
+    const raw: readonly ColumnConfig[] = configs();
+    validateColumns(raw, knownTypes);
+    return resolveColumns(raw, translate);
+  });
+
+  const defaults = computed<Required<Pick<TablePreferences, 'order' | 'hidden'>>>(() => ({
+    order: base().map((column) => column.name),
+    hidden: base().filter((column) => !column.visible).map((column) => column.name),
+  }));
+
+  /**
+   * `null` means "nobody has said otherwise" — so the value follows the configuration.
+   *
+   * Without this distinction a plugin built before its columns arrived would freeze an empty order and
+   * an empty hidden set, and every column the file later declared invisible would come up visible.
+   */
+  const order: Signal<string[] | null> = signal<string[] | null>(options.preferences?.order ?? null);
+  const hidden: Signal<string[] | null> = signal<string[] | null>(options.preferences?.hidden ?? null);
   const sort: Signal<SortState> = signal<SortState>(options.preferences?.sort ?? { active: null, direction: null });
+
+  const effectiveOrder = (): string[] => order() ?? defaults().order;
+  const effectiveHidden = (): string[] => hidden() ?? defaults().hidden;
 
   const fire = (event: TableActionEvent<TRow>): void => {
     options.onAction?.(event);
   };
 
   const preferences = computed<TablePreferences>(() => ({
-    order: order(),
-    hidden: hidden(),
+    order: effectiveOrder(),
+    hidden: effectiveHidden(),
     sort: sort(),
   }));
 
@@ -183,9 +215,21 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     },
   });
 
+  /**
+   * Config order, overlaid with the user's.
+   *
+   * A column the saved order has never seen — one added to the file since the preference was stored —
+   * sorts after the known ones but KEEPS its position relative to other newcomers, which is why the
+   * fallback is offset by the config index rather than being a single large constant for all of them.
+   */
   const ordered = computed<ResolvedColumn[]>(() => {
-    const index: Map<string, number> = new Map(order().map((name, i) => [name, i]));
-    return [...base].sort((a, b) => (index.get(a.name) ?? 1e6) - (index.get(b.name) ?? 1e6));
+    const index: Map<string, number> = new Map(effectiveOrder().map((name, i) => [name, i]));
+    const columnsNow: ResolvedColumn[] = base();
+    const rank = (column: ResolvedColumn, i: number): number => index.get(column.name) ?? 1e6 + i;
+    return columnsNow
+      .map((column, i) => ({ column, key: rank(column, i) }))
+      .sort((a, b) => a.key - b.key)
+      .map((entry) => entry.column);
   });
 
   const roleOk = (roles?: string[]): boolean => !roles || !options.checkRole || options.checkRole(roles);
@@ -194,7 +238,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     item.translate && item.title ? translate(item.title) : (item.title ?? item.action);
 
   const columns = computed<TableColumn<TRow>[]>(() => {
-    const off: Set<string> = new Set(hidden());
+    const off: Set<string> = new Set(effectiveHidden());
     const out: TableColumn<TRow>[] = [];
 
     for (const column of ordered()) {
@@ -259,9 +303,9 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
       report('order');
     },
     toggleColumn: (name: string): void => {
-      const column: ResolvedColumn | undefined = base.find((entry) => entry.name === name);
+      const column: ResolvedColumn | undefined = base().find((entry) => entry.name === name);
       if (!column || column.availability === 'pinned') return;
-      const off: string[] = hidden();
+      const off: string[] = effectiveHidden();
       hidden.set(off.includes(name) ? off.filter((entry) => entry !== name) : [...off, name]);
       report('visibility');
     },
@@ -269,9 +313,11 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
       order.set(names);
       report('order');
     },
+    // Back to null, not back to a snapshot of the defaults: reset means "follow the configuration
+    // again", so a config that changes afterwards is picked up rather than shadowed by a stale copy.
     resetColumns: (): void => {
-      order.set(defaults.order!);
-      hidden.set(defaults.hidden!);
+      order.set(null);
+      hidden.set(null);
       sort.set({ active: null, direction: null });
       report('reset');
     },

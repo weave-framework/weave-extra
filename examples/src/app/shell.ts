@@ -23,6 +23,7 @@ import SplitPage from '../pages/split.js';
 import InsidePage from '../pages/inside.js';
 import DockingPage from '../pages/docking.js';
 import BenchPage from '../pages/bench.js';
+import TablePage from '../pages/table.js';
 
 const REPO_URL = 'https://github.com/weave-framework/weave-extra';
 
@@ -36,6 +37,7 @@ export const PAGES: PageEntry[] = [
   { id: 'split', title: 'Split', group: 'Components' },
   { id: 'inside', title: 'Inside a Split', group: 'Components' },
   { id: 'docking', title: 'Docking', group: 'Components' },
+  { id: 'table', title: 'Table plugin', group: 'Plugins' },
   { id: 'bench', title: 'Rendering cost', group: 'Measurements' },
 ];
 
@@ -112,4 +114,4 @@ export function setup(): ShellContext {
 }
 
 // Capitalized tags in shell.html resolve to these imports.
-export { Toolbar, Button, Badge, Icon, Sidenav, Expansion, SplitPage, InsidePage, DockingPage, BenchPage };
+export { Toolbar, Button, Badge, Icon, Sidenav, Expansion, SplitPage, InsidePage, DockingPage, BenchPage, TablePage };

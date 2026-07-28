@@ -1,0 +1,67 @@
+<article>
+  <h1>Table plugin</h1>
+  <p class="lead">
+    A grid driven by a column file, with a cell type supplied as an ordinary Weave component.
+  </p>
+  <p>
+    The columns below were fetched from <code>public/json/documents.columns.json</code> after this page
+    mounted — the plugin was constructed with an empty list and picked them up when they landed. Change
+    that file and reload: no rebuild.
+  </p>
+  <p class="demo-note">Columns: {{ status() }}</p>
+
+  <h2>Loading the configuration</h2>
+  <p>
+    Two routes, and the choice is about who gets to change a grid. A build-time import is bundled and
+    type-checked against <code>ColumnConfig</code>; a runtime fetch lets a deployment change what a
+    screen shows without shipping code, and pays for it with the plugin's own validation.
+  </p>
+  <CodeTabs id="table-loading" />
+
+  <h2>Columns</h2>
+  <p>
+    Switched off here, the column leaves the grid and the change is reported through the same
+    <code>onAction</code> as everything else. <strong>Reprocessable</strong> is
+    <code>hideInMenu</code> — rendered, but not offered. <code>rawState</code> is
+    <code>hidden</code> — never rendered, and still in the file because other things read it.
+  </p>
+  <div class="demo-controls">
+    @for (column of menuColumns(); track column.name) {
+      <Checkbox checked={{ isOn(column) }} onChange={{ () => toggle(column) }} label={{ column.title }} />
+    }
+    <Button variant="ghost" on:click={{ reset }}>Reset</Button>
+  </div>
+
+  <h2>The grid</h2>
+  <Demo height="420px">
+    <!-- #region table-usage -->
+    <Table columns={{ grid.columns() }} dataSource={{ data }} trackBy={{ (row: DocumentRow) => row.id }}
+           sort={{ grid.sort() }} onSort={{ grid.onSort }} selectable maxHeight={{ 360 }}
+           ariaLabel="Documents" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="table-usage" />
+
+  <h2>What came back</h2>
+  <p>
+    Click a status chip, a row action, or a column checkbox. Everything arrives at one handler, and the
+    row is the object this page put in — no transform on the way out.
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ clearLog }}>Clear</Button>
+  </div>
+  @if (log().length === 0) {
+    <p class="demo-note">Nothing yet.</p>
+  } @else {
+    <table class="log">
+      <thead>
+        <tr><th scope="col">kind</th><th scope="col">detail</th></tr>
+      </thead>
+      <tbody>
+        @for (entry of log(); track entry.id) {
+          <tr><td>{{ entry.kind }}</td><td>{{ entry.detail }}</td></tr>
+        }
+      </tbody>
+    </table>
+  }
+</article>

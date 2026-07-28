@@ -1,0 +1,35 @@
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--fg-soft);
+  background: var(--surface);
+  border: 1px solid var(--field-line);
+  border-radius: 999px;
+  cursor: pointer;
+  --weave-icon-size: 13px;
+}
+
+.status-chip:hover {
+  border-color: var(--accent);
+}
+
+.status-chip--ok {
+  color: var(--ok, #197b3f);
+}
+
+.status-chip--bad {
+  color: var(--danger, #b3261e);
+}
+
+.status-chip--warn {
+  color: var(--warn, #8a5a00);
+}
+
+.status-chip--busy {
+  color: var(--accent);
+}

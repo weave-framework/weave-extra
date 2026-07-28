@@ -1,0 +1,15 @@
+[
+  { "name": "id", "title": "Id", "visible": true, "type": "number", "width": 80 },
+  { "name": "documentFormat", "title": "Format", "visible": true, "type": "string", "width": 110 },
+  { "name": "documentType", "title": "Type", "visible": true, "type": "string", "width": 110 },
+  { "name": "sender", "title": "Sender", "visible": true, "type": "string", "width": 150 },
+  { "name": "recipient", "title": "Recipient", "visible": true, "type": "string", "width": 150 },
+  { "name": "momentCreated", "title": "Created", "visible": true, "type": "timestamp", "width": 170 },
+  { "name": "documentStateType", "title": "State", "visible": true, "type": "enum", "enum": "DocumentStateType", "width": 130 },
+  { "name": "processingState", "title": "Processing", "visible": true, "type": "status-chip", "width": 150 },
+  { "name": "testIndicator", "title": "Test", "visible": true, "type": "boolean", "hideFalseIcon": true, "width": 70, "align": "center" },
+  { "name": "isReprocessable", "title": "Reprocessable", "visible": true, "type": "boolean", "hideInMenu": true, "width": 120, "align": "center" },
+  { "name": "correlationId", "title": "Correlation id", "visible": false, "type": "string", "width": 220 },
+  { "name": "priority", "title": "Priority", "visible": false, "type": "number", "width": 90 },
+  { "name": "rawState", "hidden": true, "type": "string" }
+]

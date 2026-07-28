@@ -1,0 +1,184 @@
+/**
+ * The table plugin, driven by a column file fetched at runtime.
+ *
+ * There are two ways to get a `*.columns.json` into a grid, and this page is the second one on
+ * purpose, because it is the one with a question in it:
+ *
+ *   import columns from './documents.columns.json' with { type: 'json' };   // build time
+ *   const columns = await fetch('/json/documents.columns.json').then(…);    // runtime
+ *
+ * The build-time import is bundled and type-checked against `ColumnConfig`, and changing a column
+ * means a rebuild. The runtime fetch is what an application with dozens of screens wants — a
+ * deployment can change what a grid shows without shipping new code — and it costs the type check,
+ * which is why the plugin validates the config itself and throws with everything wrong at once.
+ *
+ * The plugin takes a GETTER for `columns`, so this page can build it before the file has arrived and
+ * simply let the signal fill in. Nothing here waits.
+ */
+
+import { signal, onMount, type Signal } from '@weave-framework/runtime';
+import Table from '@weave-framework/ui/table';
+import Button from '@weave-framework/ui/button';
+import Checkbox from '@weave-framework/ui/checkbox';
+import {
+  tablePlugin,
+  type ColumnConfig,
+  type TableActionEvent,
+  type TablePluginApi,
+  type ResolvedColumn,
+} from '@weave-framework/extra/plugins/table';
+import StatusChip from './table-cells/status-chip.js';
+import Demo from '../lib/demo/demo.js';
+import CodeTabs from '../lib/code-tabs/code-tabs.js';
+
+const COLUMNS_URL = 'json/documents.columns.json';
+
+export interface DocumentRow extends Record<string, unknown> {
+  id: number;
+  documentFormat: string;
+  documentType: string;
+  sender: string;
+  recipient: string;
+  momentCreated: number;
+  documentStateType: number;
+  processingState: string;
+  testIndicator: boolean;
+  isReprocessable: boolean;
+  correlationId: string;
+  priority: number;
+  rawState: string;
+}
+
+const STATES: string[] = ['succeeded', 'retrying', 'failed', 'warning', 'rejected'];
+
+function rows(): DocumentRow[] {
+  const out: DocumentRow[] = [];
+  for (let i: number = 0; i < 24; i++) {
+    out.push({
+      id: 4200 + i,
+      documentFormat: i % 3 === 0 ? 'EDIFACT' : 'X12',
+      documentType: ['ORDERS', 'INVOIC', 'DESADV'][i % 3],
+      sender: `Sender ${String.fromCharCode(65 + (i % 6))}`,
+      recipient: `Recipient ${String.fromCharCode(88 - (i % 5))}`,
+      momentCreated: 1750000000000 + i * 3600_000,
+      documentStateType: i % 4,
+      processingState: STATES[i % STATES.length],
+      testIndicator: i % 7 === 0,
+      isReprocessable: i % 3 === 0,
+      correlationId: `corr-${(i * 7919).toString(16)}`,
+      priority: (i % 5) + 1,
+      rawState: 'internal',
+    });
+  }
+  return out;
+}
+
+export interface LogEntry {
+  id: number;
+  kind: string;
+  detail: string;
+}
+
+export interface TablePageContext {
+  Table: typeof Table;
+  grid: TablePluginApi<DocumentRow>;
+  data: Signal<DocumentRow[]>;
+  status: () => string;
+  log: () => LogEntry[];
+  clearLog: () => void;
+  menuColumns: () => ResolvedColumn[];
+  isOn: (column: ResolvedColumn) => boolean;
+  toggle: (column: ResolvedColumn) => void;
+  reset: () => void;
+  format: (value: unknown) => string;
+}
+
+export function setup(): TablePageContext {
+  const configs: Signal<ColumnConfig[]> = signal<ColumnConfig[]>([]);
+  const status: Signal<string> = signal<string>('loading…');
+  const data: Signal<DocumentRow[]> = signal<DocumentRow[]>(rows());
+  const log: Signal<LogEntry[]> = signal<LogEntry[]>([]);
+  let seq: number = 0;
+
+  const record = (kind: string, detail: string): void => {
+    seq += 1;
+    log.set([{ id: seq, kind, detail }, ...log()].slice(0, 12));
+  };
+
+  const grid: TablePluginApi<DocumentRow> = tablePlugin<DocumentRow>({
+    // A getter, not an array: the file has not arrived yet, and this page does not wait for it.
+    columns: configs,
+
+    // The consumer's own cell types. A Weave component needs no wrapper — it is already the shape a
+    // cell renderer has to be.
+    cells: { 'status-chip': StatusChip },
+
+    enums: {
+      DocumentStateType: [
+        { value: 0, displayName: 'Received' },
+        { value: 1, displayName: 'Translated' },
+        { value: 2, displayName: 'Delivered' },
+        { value: 3, displayName: 'Acknowledged' },
+      ],
+    },
+    formatDate: (value: unknown): string =>
+      new Date(value as number).toISOString().slice(0, 16).replace('T', ' '),
+
+    actions: [
+      { action: 'open', icon: 'external-link', title: 'Open document' },
+      { action: 'reprocess', icon: 'refresh-cw', title: 'Reprocess', visible: (row) => row.isReprocessable },
+      { action: 'delete', icon: 'trash-2', title: 'Delete', showIn: 'menu' },
+    ],
+
+    // One handler. Everything the grid can report arrives here, with the row in its original shape —
+    // no transform step on the way out.
+    onAction: (event: TableActionEvent<DocumentRow>): void => {
+      if (event.kind === 'cell') record('cell', `${event.action} · ${event.column} = ${String(event.value)}`);
+      else if (event.kind === 'item') record('item', `${event.action} · row ${event.row.id}`);
+      else if (event.kind === 'global') record('global', event.action);
+      else record('columns', `${event.reason} · ${(event.preferences.hidden ?? []).length} hidden`);
+    },
+  });
+
+  onMount(() => {
+    let cancelled: boolean = false;
+    // #region table-loading
+    fetch(COLUMNS_URL)
+      .then((response: Response) => {
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+        return response.json() as Promise<ColumnConfig[]>;
+      })
+      .then((loaded: ColumnConfig[]) => {
+        if (cancelled) return;
+        // Setting the signal is the whole handover: the plugin re-validates and rebuilds its columns,
+        // and a config that is wrong throws here rather than rendering blank columns.
+        configs.set(loaded);
+        status.set(`${loaded.length} column(s) from ${COLUMNS_URL}`);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) status.set(`failed: ${String(error)}`);
+      });
+    // #endregion
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  return {
+    Table,
+    grid,
+    data,
+    status,
+    log,
+    clearLog: (): void => {
+      log.set([]);
+    },
+    menuColumns: (): ResolvedColumn[] => grid.allColumns().filter((column) => column.availability === 'toggleable'),
+    isOn: (column: ResolvedColumn): boolean => !(grid.preferences().hidden ?? []).includes(column.name),
+    toggle: (column: ResolvedColumn): void => grid.toggleColumn(column.name),
+    reset: (): void => grid.resetColumns(),
+    format: (value: unknown): string => JSON.stringify(value),
+  };
+}
+
+export { Button, Checkbox, Demo, CodeTabs };

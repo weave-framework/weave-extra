@@ -3,6 +3,10 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
+    // Column configs are authored as `.columns.json`. Importing one directly is the build-time route
+    // (bundled and type-checked); fetching it at runtime is the other. Both are supported, and this
+    // is what makes the first one type-check rather than error on the import.
+    "resolveJsonModule": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": [],
     "strict": true,

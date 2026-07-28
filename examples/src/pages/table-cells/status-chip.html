@@ -1,0 +1,6 @@
+@if (label()) {
+  <button type="button" class={{ rootClass() }} on:click={{ onActivate }}>
+    <Icon name={{ icon() }} />
+    <span class="status-chip__label">{{ label() }}</span>
+  </button>
+}
