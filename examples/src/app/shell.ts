@@ -8,6 +8,7 @@
 
 import { onMount, signal, type Signal } from '@weave-framework/runtime';
 import SplitPage from '../pages/split.js';
+import InsidePage from '../pages/inside.js';
 
 export interface PageEntry {
   id: string;
@@ -23,6 +24,12 @@ export const PAGES: PageEntry[] = [
     title: 'Split',
     group: 'Components',
     blurb: 'Resizable panes with draggable gutters',
+  },
+  {
+    id: 'inside',
+    title: 'Inside a Split',
+    group: 'Components',
+    blurb: 'Native HTML and Weave UI in the panes',
   },
 ];
 
@@ -62,5 +69,5 @@ export function setup(): ShellContext {
   };
 }
 
-// Referenced by the template; listed here so the value is unmistakably used.
-export { SplitPage };
+// Referenced by the template; listed here so the values are unmistakably used.
+export { SplitPage, InsidePage };

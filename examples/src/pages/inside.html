@@ -1,0 +1,146 @@
+<article class="ex-page">
+  <header class="ex-page__head">
+    <h2 class="ex-page__title">Inside a Split</h2>
+    <p class="ex-page__lead">
+      A gutter binds <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> <kbd>Home</kbd>
+      <kbd>End</kbd> <kbd>PageUp</kbd> <kbd>PageDown</kbd> <kbd>Enter</kbd> — and so does a
+      <code>&lt;select&gt;</code>, a scroll container, and half the component library. Nothing collides,
+      because the gutter's listener is on the gutter and pane content is its <em>sibling</em>, not its
+      descendant. Events from the content never travel through it.
+    </p>
+  </header>
+
+  <Demo
+    title="Native HTML"
+    note="A real form and a scrolling list. Type in the field, arrow through the select, scroll the list — then drag or key the gutter."
+    height="300px"
+  >
+    <Split bind:sizes={{ nativeSizes }} gutterLabel="Resize the native panes">
+      <SplitPane min={{ 22 }}>
+        <form class="ex-form" on:submit={{ onSubmit }}>
+          <label class="ex-field">
+            <span>Text</span>
+            <input type="text" placeholder="type here" />
+          </label>
+          <label class="ex-field">
+            <span>Select</span>
+            <select>
+              @for (option of options; track option.value) {
+                <option value={{ option.value }}>{{ option.label }}</option>
+              }
+            </select>
+          </label>
+          <fieldset class="ex-field ex-field--group">
+            <legend>Radio</legend>
+            <label><input type="radio" name="native-r" checked /> One</label>
+            <label><input type="radio" name="native-r" /> Two</label>
+          </fieldset>
+          <label class="ex-check"><input type="checkbox" /> Checkbox</label>
+          <label class="ex-field">
+            <span>Textarea</span>
+            <textarea rows="2">two
+lines</textarea>
+          </label>
+          <button type="submit">Submit ({{ submits() }})</button>
+        </form>
+      </SplitPane>
+
+      <SplitPane min={{ 22 }}>
+        <div class="ex-scroll">
+          <table class="ex-table">
+            <thead>
+              <tr><th scope="col">#</th><th scope="col">Value</th></tr>
+            </thead>
+            <tbody>
+              @for (row of rows; track row) {
+                <tr><td>{{ $index + 1 }}</td><td>{{ row }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </SplitPane>
+    </Split>
+  </Demo>
+
+  <Demo
+    title="Weave UI"
+    note="The same shapes built from @weave-framework/ui. The Select's panel is portalled, so a pane's overflow never clips it."
+    height="300px"
+  >
+    <Split bind:sizes={{ weaveSizes }} gutterLabel="Resize the component panes">
+      <SplitPane min={{ 22 }}>
+        <div class="ex-form">
+          <Input value={{ text() }} onInput={{ (v: string) => text.set(v) }} label="Text" placeholder="type here" clearable />
+          <Select options={{ options }} value={{ picked() }} onChange={{ (v: SelectValue<Option>) => picked.set(v) }} label="Select" />
+          <Checkbox checked={{ agreed() }} onChange={{ (v: boolean) => agreed.set(v) }} label="Checkbox" />
+          <Input value={{ text() }} onInput={{ (v: string) => text.set(v) }} label="Notes" multiline rows={{ 2 }} />
+          <Button variant="primary">Button</Button>
+        </div>
+      </SplitPane>
+
+      <SplitPane min={{ 22 }}>
+        <div class="ex-scroll">
+          @for (row of rows; track row) {
+            <div class="ex-scroll__row">{{ row }}</div>
+          }
+        </div>
+      </SplitPane>
+    </Split>
+  </Demo>
+
+  <div class="ex-proof" on:keydown={{ onAreaKeydown }}>
+    <Demo
+      title="Where did that key go?"
+      note="Every watched key is logged with the element it landed on. Press keys in the field, in the list, then Tab to a gutter and press the same keys."
+      height="220px"
+    >
+      <Split bind:sizes={{ proofSizes }} gutterLabel="Resize the proof panes">
+        <SplitPane min={{ 25 }}>
+          <div class="ex-form">
+            <label class="ex-field">
+              <span>Native field</span>
+              <input type="text" value="press keys here" />
+            </label>
+            <label class="ex-field">
+              <span>Native select</span>
+              <select>
+                @for (option of options; track option.value) {
+                  <option value={{ option.value }}>{{ option.label }}</option>
+                }
+              </select>
+            </label>
+          </div>
+        </SplitPane>
+        <SplitPane min={{ 25 }}>
+          <div class="ex-scroll" tabindex="0">
+            @for (row of rows; track row) {
+              <div class="ex-scroll__row">{{ row }}</div>
+            }
+          </div>
+        </SplitPane>
+      </Split>
+    </Demo>
+
+    <div class="ex-log">
+      <div class="ex-log__head">
+        <h4 class="ex-log__title">keydown · splitter sizes {{ format(proofSizes()) }}</h4>
+        <button class="ex-button" on:click={{ clearKeys }}>Clear</button>
+      </div>
+      @if (keys().length === 0) {
+        <p class="ex-log__empty">No watched keys yet. Only a key that landed on a gutter moves the splitter.</p>
+      } @else {
+        <ul class="ex-log__list">
+          @for (entry of keys(); track entry.id) {
+            <li class="ex-log__row">
+              <span class="ex-log__reason">{{ entry.key }}</span>
+              <span class="ex-log__sizes">{{ entry.target }}</span>
+              <span class={{ entry.where === 'splitter gutter' ? 'ex-log__tag ex-log__tag--on' : 'ex-log__tag' }}>
+                {{ entry.where }}
+              </span>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+</article>

@@ -5,6 +5,9 @@
 @use 'pkg:@weave-framework/ui' as weave;
 
 @include weave.theme();
+// Structural CSS for the built-in components. Needed because the examples put real `@weave-framework/ui`
+// controls inside a `<Split>` — without it they render unstyled and the page proves nothing.
+@include weave.all-styles();
 
 *,
 *::before,
