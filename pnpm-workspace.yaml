@@ -1,0 +1,8 @@
+# pnpm 11 reads install policy here, not from package.json.
+#
+# esbuild ships a platform binary via a postinstall script and `@weave-framework/cli` needs it, so its
+# build is approved. `@parcel/watcher` is a transitive of `sass` used only by its `--watch` CLI — we
+# compile through the sass API, so its native build is denied rather than left merely unapproved.
+allowBuilds:
+  esbuild: true
+  '@parcel/watcher': false

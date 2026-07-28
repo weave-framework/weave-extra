@@ -1,0 +1,12 @@
+{
+  "//": "Emit build for publishing. tsconfig.json stays noEmit for type-checking only.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist"
+  },
+  "include": ["src"]
+}
