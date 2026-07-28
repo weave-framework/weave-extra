@@ -36,7 +36,9 @@
   <Demo height="420px">
     <!-- #region table-usage -->
     <Table columns={{ grid.columns() }} dataSource={{ data }} trackBy={{ (row: DocumentRow) => row.id }}
-           sort={{ grid.sort() }} onSort={{ grid.onSort }} selectable maxHeight={{ 360 }}
+           sort={{ grid.sort() }} onSort={{ grid.onSort }} selectable
+           virtual={{ grid.virtual() }} rowHeight={{ grid.rowHeight() }}
+           overscan={{ grid.overscan() }} maxHeight={{ grid.maxHeight() }}
            ariaLabel="Documents" />
     <!-- #endregion -->
   </Demo>

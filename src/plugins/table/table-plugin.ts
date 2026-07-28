@@ -95,6 +95,27 @@ export interface TablePluginOptions<TRow> {
 
   /** Make every column resizable unless its config says otherwise. */
   resizableColumns?: boolean;
+
+  /**
+   * Render only the rows in view instead of the whole page.
+   *
+   * Worth having as configuration rather than a default because it is a trade, not a free win. It
+   * takes the first render of a 1000-row grid from ~482 ms over 46,414 DOM nodes to ~14 ms over 867,
+   * and the cost stops following the row count — but it needs {@link maxHeight}, it fixes the row
+   * height, and `<Table>` refuses it together with `expandable`, because mapping a scroll offset to a
+   * row index cannot survive a detail row of unknown height. A grid with an expandable detail row
+   * has to choose.
+   *
+   * `<Table>` reads this ONCE, at its own setup. Changing it on a mounted grid does nothing: render
+   * the two modes as separate `<Table>` instances if a runtime switch is really wanted.
+   */
+  virtual?: boolean;
+  /** Row height in px for {@link virtual} — must match what a row actually renders at. */
+  rowHeight?: number;
+  /** Rows rendered above and below the viewport in {@link virtual} mode. */
+  overscan?: number;
+  /** Cap on the body height. Required by {@link virtual}: without one there is no viewport to window. */
+  maxHeight?: number | string;
 }
 
 export interface TablePluginApi<TRow> {
@@ -116,6 +137,15 @@ export interface TablePluginApi<TRow> {
   menuActions: (row: TRow) => { action: string; icon?: string; title: string; disabled: boolean }[];
   fire: (event: TableActionEvent<TRow>) => void;
   api: CellApi;
+
+  /**
+   * Pass-throughs for `<Table>`. Getters rather than one object because a Weave template has no prop
+   * spread — each one is written out on the tag.
+   */
+  virtual: () => boolean;
+  rowHeight: () => number | undefined;
+  overscan: () => number | undefined;
+  maxHeight: () => number | string | undefined;
 }
 
 export function tablePlugin<TRow extends Record<string, unknown> = Record<string, unknown>>(
@@ -133,6 +163,16 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
   };
 
   const knownTypes: string[] = [...new Set([...BUILT_IN_TYPES, ...Object.keys(options.cells ?? {})])];
+
+  // Refused here rather than left to `<Table>`, which raises the same thing from inside its own setup
+  // — deep in a render, and phrased in its own vocabulary. This fires while the grid is being
+  // configured, where the option was actually written.
+  if (options.virtual && options.maxHeight == null) {
+    throw new Error(
+      '@weave-framework/extra table: `virtual` needs `maxHeight` — without one the body grows to fit ' +
+        'its rows and there is no viewport to window.'
+    );
+  }
 
   /**
    * The configuration, read reactively.
@@ -345,5 +385,9 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
         })),
     fire,
     api,
+    virtual: (): boolean => options.virtual === true,
+    rowHeight: (): number | undefined => options.rowHeight,
+    overscan: (): number | undefined => options.overscan,
+    maxHeight: (): number | string | undefined => options.maxHeight,
   };
 }

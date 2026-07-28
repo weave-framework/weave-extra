@@ -130,6 +130,12 @@ export function setup(): TablePageContext {
       { action: 'delete', icon: 'trash-2', title: 'Delete', showIn: 'menu' },
     ],
 
+    // Only the rows in view get rendered. Configuration, not a default: it fixes the row height and
+    // rules out an expandable detail row, so it is a choice a grid makes rather than one made for it.
+    virtual: true,
+    rowHeight: 34,
+    maxHeight: 360,
+
     // One handler. Everything the grid can report arrives here, with the row in its original shape —
     // no transform step on the way out.
     onAction: (event: TableActionEvent<DocumentRow>): void => {
