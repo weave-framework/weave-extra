@@ -33,6 +33,11 @@
   <p class="demo-note">
     Column mix: {{ mixSummary() }} · actions fired: {{ actionCount() }}
   </p>
+  <p class="demo-note">
+    <strong>Known limit:</strong> changing the column set overflows the stack and leaves the grid
+    half-rendered — at 200 rows when the rows keep their identity (50 is fine), at 500 when they are
+    replaced too. Reproduces with plain <code>&lt;Table&gt;</code>; no plugin involved.
+  </p>
 
   <h2>Results</h2>
   @if (results().length === 0) {

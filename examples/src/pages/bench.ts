@@ -11,13 +11,26 @@
  * consumers write those. So the cycle below is deliberately the shape of `documents.columns.json`:
  * mostly strings and numbers, a few dates and enums, two component columns, one action column.
  *
- * Timing: outside a `batch`, Weave flushes effects synchronously, so `rows.set(...)` RETURNS with the
- * DOM already built — that call IS the build. Paint is a separate cost the browser pays afterwards,
- * measured with the double-rAF idiom (the first callback runs before this frame's layout, the second
- * after it has been painted).
+ * Timing: Weave flushes effects synchronously, and `batch` flushes on the way out, so the mutation
+ * RETURNS with the DOM already built — that call IS the build. Layout is the browser's separate cost,
+ * forced afterwards by reading `offsetHeight`.
+ *
+ * KNOWN LIMIT — changing the column set overflows the stack (`RangeError: Maximum call stack size
+ * exceeded`) and leaves the grid half-rendered. It reproduces with plain `<Table>`; this page uses no
+ * plugin. Two paths, two thresholds:
+ *
+ *   - rows KEEP their identity (the column set alone changes — what a columns menu does): fails at
+ *     200 rows, survives at 50;
+ *   - rows are replaced at the same time (new keys, so the list rebuilds): survives at 200, fails at
+ *     500 and 1000.
+ *
+ * `batch` does not prevent either, because it decrements its depth BEFORE flushing — the render still
+ * runs with the queue open. The runtime's `flush()` has no re-entrancy guard, and `setRef` writes a
+ * signal during render, so a write made while rendering drains the queue on top of the render that is
+ * still running rather than appending to it.
  */
 
-import { computed, signal, type Computed, type Signal } from '@weave-framework/runtime';
+import { batch, computed, signal, type Computed, type Signal } from '@weave-framework/runtime';
 import Table, { type TableColumn } from '@weave-framework/ui/table';
 import Button from '@weave-framework/ui/button';
 import StatusCell from './bench-cells/status-cell.js';
@@ -191,7 +204,7 @@ export function setup(): BenchPageContext {
    */
   const measure = (label: string, apply: () => void): void => {
     const start: number = performance.now();
-    apply();
+    batch(apply);
     const build: number = performance.now() - start;
     const el: HTMLElement | null = host();
     if (el) void el.offsetHeight; // flush style + layout
@@ -214,17 +227,17 @@ export function setup(): BenchPageContext {
     results,
     actionCount: (): number => actions(),
     setRows: (value: number): void => {
-      rowCount.set(value);
       // Built BEFORE the clock starts: generating the data is the app's cost, not the table's.
       const next: BenchRow[] = makeRows(value, colCount());
       measure(`${value} × ${colCount()} — sukurta iš naujo`, () => {
+        rowCount.set(value);
         rows.set(next);
       });
     },
     setCols: (value: number): void => {
-      colCount.set(value);
       const next: BenchRow[] = makeRows(rowCount(), value);
       measure(`${rowCount()} × ${value} — sukurta iš naujo`, () => {
+        colCount.set(value);
         rows.set(next);
       });
     },
@@ -255,18 +268,21 @@ export function setup(): BenchPageContext {
     chromeVariant: (): string => (chrome() ? 'primary' : 'ghost'),
     richVariant: (): string => (rich() ? 'primary' : 'ghost'),
     toggleChrome: (): void => {
-      chrome.set(!chrome());
-      const next: BenchRow[] = makeRows(rowCount(), colCount()).map((row) => ({ ...row, id: row.id + rebuilds() * 1e6 }));
-      rebuilds.set(rebuilds() + 1);
-      measure(`${rowCount()} × ${colCount()} — chrome ${chrome() ? 'on' : 'off'}`, () => {
-        rows.set(next);
+      const nextChrome: boolean = !chrome();
+      // The rows are NOT replaced: flipping the chrome is a column change, and keeping the data
+      // identical is what makes this measure the chrome rather than a rebuild.
+      measure(`${rowCount()} × ${colCount()} — chrome ${nextChrome ? 'on' : 'off'}`, () => {
+        chrome.set(nextChrome);
       });
     },
+    // Grouped in one mutation so the grid is published once rather than twice — which is what `batch`
+    // buys here. It does NOT make the column change safe at scale; see the known limit at the top.
     toggleRich: (): void => {
-      rich.set(!rich());
+      const nextRich: boolean = !rich();
       const next: BenchRow[] = makeRows(rowCount(), colCount()).map((row) => ({ ...row, id: row.id + rebuilds() * 1e6 }));
-      rebuilds.set(rebuilds() + 1);
-      measure(`${rowCount()} × ${colCount()} — cells ${rich() ? 'component' : 'text'}`, () => {
+      measure(`${rowCount()} × ${colCount()} — cells ${nextRich ? 'component' : 'text'}`, () => {
+        rebuilds.set(rebuilds() + 1);
+        rich.set(nextRich);
         rows.set(next);
       });
     },
