@@ -20,8 +20,11 @@
  *   1. the row chrome is on (selection checkboxes, expand toggles, resize grips) — these are child
  *      components that write a `ref` signal DURING render;
  *   2. the column set changes on an already-rendered grid;
- *   3. there are enough rows — 200 when the rows keep their identity (what a columns menu does), 500
- *      when they are replaced at the same time. 50 is fine either way.
+ *   3. there are enough rows — bisected on this machine to between 150 (clean) and 200 (overflows)
+ *      when the rows keep their identity, which is what a columns menu does; 500 when they are
+ *      replaced at the same time. The threshold is a stack budget, so it moves with the browser and
+ *      with how many frames each row costs — treat ~150 as the observed order of magnitude, not a
+ *      constant to design against.
  *
  * Then the stack overflows (`RangeError`) and the grid is left half-rendered. Row COUNT alone is not
  * the problem: with the chrome off, 1,000 rows plus a column change is clean, and a fresh render of
@@ -221,7 +224,7 @@ export function setup(): BenchPageContext {
   return {
     Table,
     host,
-    rowChoices: [50, 200, 500, 1000],
+    rowChoices: [30, 50, 100, 150, 200, 500, 1000],
     colChoices: [10, 20, 40],
     rowCount,
     colCount,

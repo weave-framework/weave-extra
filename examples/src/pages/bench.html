@@ -35,7 +35,7 @@
   </p>
   <p class="demo-note">
     <strong>Known limit:</strong> chrome on <em>and</em> a column-set change <em>and</em> enough rows
-    (200 keeping identity, 500 when replaced) overflows the stack and leaves the grid half-rendered.
+    (bisected to between 150 and 200 keeping identity, 500 when replaced) overflows the stack and leaves the grid half-rendered.
     Drop any one and it is clean — 1000 rows with the chrome off changes columns fine, and a fresh
     render of 1000 rows with the chrome on is fine. Plain <code>&lt;Table&gt;</code>; no plugin.
   </p>
