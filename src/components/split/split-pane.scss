@@ -1,7 +1,18 @@
-// SplitPane — the pane box. Scoped to this component by the compiler.
+// SplitPane — the pane box AND the gutter that follows it. Scoped to this component by the compiler.
 //
-// A pane styles only what it renders. Its grid PLACEMENT is written inline by the container (the
-// track it occupies is the container's to decide); everything here is the box the content sits in.
+// The gutter is styled here because the pane renders it, and it renders it because tab order follows
+// DOM order: a separator emitted after the whole slot is reached only once every pane has been
+// tabbed through, which is not where a keyboard user looks for it.
+//
+// Every colour and measure reads through `var(--weave-split-*, var(--weave-color-*, <literal>))`:
+// override the component token to restyle just the splitter, set the Weave theme to have it follow
+// the app, or include neither and still get something that looks deliberate.
+
+// The wrapper generates no box of its own, so the pane and its gutter stay direct grid items of the
+// container — correct DOM order, unchanged layout.
+.weave-split__slot {
+  display: contents;
+}
 
 .weave-split__pane {
   position: relative;
@@ -17,4 +28,106 @@
   // At zero width a scrollbar would still claim space and re-open the track it was just collapsed
   // out of.
   overflow: hidden;
+}
+
+/* ── the gutter ── */
+
+.weave-split__gutter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--weave-split-gutter, transparent);
+  // Let a pointer drag resize, rather than scroll the page under it.
+  touch-action: none;
+  transition: background var(--weave-split-duration, var(--weave-motion-fast, 0.15s)) ease;
+}
+
+// The hairline seam. A pseudo-element rather than a border, so the hit area stays the full gutter
+// width while the visible line stays 1px — a 1px target is unusable with a mouse and impossible
+// with a finger.
+.weave-split__gutter::before {
+  content: '';
+  position: absolute;
+  background: var(--weave-split-line, var(--weave-color-line, rgba(20, 22, 28, 0.16)));
+}
+
+.weave-split__grip {
+  display: block;
+  background: var(--weave-split-grip, var(--weave-color-neutral, #9a9ca3));
+  border-radius: var(--weave-split-grip-radius, 1px);
+  transition: background var(--weave-split-duration, var(--weave-motion-fast, 0.15s)) ease;
+}
+
+// The axis is carried on the gutter itself rather than read from a container class: the container is
+// a different component, and a selector reaching across that boundary does not survive scoping.
+.weave-split__gutter--horizontal {
+  cursor: col-resize;
+}
+
+.weave-split__gutter--horizontal::before {
+  inset-block: 0;
+  inset-inline-start: 50%;
+  inline-size: var(--weave-split-line-thickness, 1px);
+  transform: translateX(-50%);
+}
+
+.weave-split__gutter--horizontal > .weave-split__grip {
+  inline-size: var(--weave-split-grip-thickness, 2px);
+  block-size: var(--weave-split-grip-length, 24px);
+}
+
+.weave-split__gutter--vertical {
+  cursor: row-resize;
+}
+
+.weave-split__gutter--vertical::before {
+  inset-inline: 0;
+  inset-block-start: 50%;
+  block-size: var(--weave-split-line-thickness, 1px);
+  transform: translateY(-50%);
+}
+
+.weave-split__gutter--vertical > .weave-split__grip {
+  inline-size: var(--weave-split-grip-length, 24px);
+  block-size: var(--weave-split-grip-thickness, 2px);
+}
+
+/* ── state ── */
+
+.weave-split__gutter:hover,
+.weave-split__gutter--dragging {
+  background: var(--weave-split-gutter-hover, var(--weave-color-field, #ecedf0));
+}
+
+.weave-split__gutter:hover > .weave-split__grip,
+.weave-split__gutter--dragging > .weave-split__grip {
+  background: var(--weave-split-grip-active, var(--weave-color-accent, #4c6286));
+}
+
+.weave-split__gutter:focus-visible {
+  // Inset, not outset: the gutter is a few pixels wide, so an outward ring would spill across both
+  // panes and read as the panes being selected rather than the splitter being focused.
+  outline: var(--weave-split-focus-width, 2px) solid
+    var(--weave-split-focus, var(--weave-color-accent, #4c6286));
+  outline-offset: var(--weave-split-focus-offset, -2px);
+}
+
+.weave-split__gutter--disabled,
+.weave-split__gutter--disabled:hover {
+  cursor: default;
+  background: var(--weave-split-gutter, transparent);
+}
+
+.weave-split__gutter--disabled > .weave-split__grip {
+  opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  // Not `none`: a 0.001ms transition still fires transitionend, so anything waiting on that event
+  // keeps working instead of hanging for a listener that never fires.
+  .weave-split__gutter,
+  .weave-split__grip {
+    transition-duration: 0.001ms;
+  }
 }

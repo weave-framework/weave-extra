@@ -1,3 +1,29 @@
-<div class={{ rootClass() }} ref={{ el }} style={{ rootStyle() }}>
-  <slot />
+<div class="weave-split__slot">
+  <div class={{ rootClass() }} ref={{ el }} style={{ rootStyle() }}>
+    <slot />
+  </div>
+
+  @let bar = gutter.view();
+  @if (bar) {
+    <div
+      class={{ gutter.class() }}
+      style={{ bar.style }}
+      role="separator"
+      tabindex={{ gutter.tabindex() }}
+      aria-orientation={{ gutter.ariaOrientation() }}
+      aria-label={{ bar.label }}
+      aria-valuenow={{ bar.valueNow }}
+      aria-valuemin={{ bar.valueMin }}
+      aria-valuemax={{ bar.valueMax }}
+      aria-valuetext={{ bar.valueText }}
+      aria-disabled={{ gutter.disabledAttr() }}
+      on:pointerdown={{ gutter.onPointerdown }}
+      on:pointermove={{ gutter.onPointermove }}
+      on:pointerup={{ gutter.onPointerup }}
+      on:pointercancel={{ gutter.onPointerup }}
+      on:keydown={{ gutter.onKeydown }}
+    >
+      <span class="weave-split__grip" aria-hidden="true"></span>
+    </div>
+  }
 </div>

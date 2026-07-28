@@ -10,7 +10,12 @@
  */
 
 import { inject, onDispose, signal, type Signal } from '@weave-framework/runtime';
-import { SplitContext, type SplitContextValue, type SplitPaneHandle } from './context.js';
+import {
+  SplitContext,
+  type SplitContextValue,
+  type SplitGutterBinding,
+  type SplitPaneHandle,
+} from './context.js';
 import type { SplitSize } from './models.js';
 
 export interface SplitPaneProps {
@@ -49,6 +54,8 @@ export interface SplitPaneRenderContext {
   el: Signal<Element | null>;
   rootClass: () => string;
   rootStyle: () => string;
+  /** The gutter this pane draws after itself — see `SplitGutterBinding` for why it lives here. */
+  gutter: SplitGutterBinding;
 }
 
 export function setup(props: SplitPaneProps): SplitPaneRenderContext {
@@ -79,6 +86,7 @@ export function setup(props: SplitPaneProps): SplitPaneRenderContext {
 
   return {
     el,
+    gutter: handle.gutter,
     rootClass: (): string => {
       const parts: string[] = ['weave-split__pane'];
       if (handle.collapsed()) parts.push('weave-split__pane--collapsed');

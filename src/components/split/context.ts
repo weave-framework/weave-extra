@@ -33,6 +33,43 @@ export interface SplitPaneDeclaration {
   onCollapsedChange?: (collapsed: boolean) => void;
 }
 
+/** One gutter, ready to render. */
+export interface SplitGutterView {
+  /** Zero-based gutter number — gutter `n` separates the `n`th and `n+1`th VISIBLE panes. */
+  index: number;
+  /** Inline grid placement. */
+  style: string;
+  label: string | undefined;
+  valueNow: number;
+  valueMin: number;
+  valueMax: number;
+  valueText: string;
+}
+
+/**
+ * The gutter that FOLLOWS a pane — rendered by the pane, driven by the container.
+ *
+ * It is rendered by the pane for one reason: tab order follows DOM order. With the container
+ * emitting every gutter after the whole slot, Tab walked all the panes and only then reached the
+ * separators, so the splitter between two panes was not where a keyboard user would look for it. A
+ * pane emitting its own trailing gutter puts them in the order they appear on screen.
+ *
+ * Everything here is derived state and callbacks — the pane holds no resize logic of its own, since
+ * bounds only mean something next to its siblings'.
+ */
+export interface SplitGutterBinding {
+  /** The gutter after this pane, or null when no pane follows it. */
+  view: () => SplitGutterView | null;
+  class: () => string;
+  tabindex: () => number;
+  disabledAttr: () => string | undefined;
+  ariaOrientation: () => 'horizontal' | 'vertical';
+  onPointerdown: (event: PointerEvent) => void;
+  onPointermove: (event: PointerEvent) => void;
+  onPointerup: (event: PointerEvent) => void;
+  onKeydown: (event: KeyboardEvent) => void;
+}
+
 /** What a pane gets back — everything it needs to render itself and nothing more. */
 export interface SplitPaneHandle {
   /** Position among the container's panes, in document order. `-1` before the first layout. */
@@ -43,6 +80,8 @@ export interface SplitPaneHandle {
   collapsed: () => boolean;
   /** Collapse if expanded, expand if collapsed. A no-op when the pane is not `collapsible`. */
   toggle: () => void;
+  /** The gutter this pane renders after itself. */
+  gutter: SplitGutterBinding;
   /** Drop this pane's registration. Call from `onDispose`. */
   dispose: () => void;
 }

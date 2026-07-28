@@ -129,8 +129,19 @@ or do neither and still get something that looks deliberate.
 
 ## Notes on the implementation
 
+- **A pane renders the gutter that follows it**, and the container renders only the grid frame. Tab
+  order follows DOM order, so a container emitting every separator after the whole slot puts them
+  all *after* every pane — Tab walks all the content first and only then reaches the splitters. Each
+  pane sits in a `display: contents` wrapper holding its box and its trailing gutter, so DOM order
+  matches visual order while both stay direct grid items. Verified: with an input in each of three
+  panes, focus order is `input → separator → input → separator → input`.
 - **One pointer path.** `pointerdown` + `setPointerCapture` covers mouse, touch and pen, and keeps the
   drag alive when the pointer crosses an iframe or leaves the window.
+- **Nothing in a pane can reach the gutter's key handling.** The listener is on the gutter, and pane
+  content is its sibling rather than its descendant, so arrows in a scroll container, `Enter` in a
+  form, and a `<select>`'s own arrow handling are all untouched — a property of the DOM shape, not of
+  any per-component allowance. The one page-wide listener is `Escape`, and only while a pointer drag
+  is actually in flight.
 - **`aria-orientation` describes the separator bar, not the pane axis.** APG calls a splitter that
   moves left/right a *vertical* splitter, so a `direction="horizontal"` split reports
   `aria-orientation="vertical"`.

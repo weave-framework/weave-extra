@@ -41,7 +41,16 @@ import {
   toSizes,
   type PaneBounds,
 } from './layout.js';
-import { SplitContext, type SplitContextValue, type SplitPaneDeclaration, type SplitPaneHandle } from './context.js';
+import {
+  SplitContext,
+  type SplitContextValue,
+  type SplitGutterBinding,
+  type SplitGutterView,
+  type SplitPaneDeclaration,
+  type SplitPaneHandle,
+} from './context.js';
+
+export type { SplitGutterBinding, SplitGutterView, SplitPaneHandle } from './context.js';
 import type {
   SplitChangeReason,
   SplitDir,
@@ -139,31 +148,14 @@ export const propDefaults = {
   useTransition: false,
 } as const;
 
-/** One gutter, ready to render. */
-export interface SplitGutterView {
-  index: number;
-  style: string;
-  label: string | undefined;
-  valueNow: number;
-  valueMin: number;
-  valueMax: number;
-  valueText: string;
-}
-
+/**
+ * The container renders only the grid frame. Gutters are emitted by the panes — see
+ * {@link SplitGutterBinding} for why tab order forced that.
+ */
 export interface SplitRenderContext {
   host: Signal<Element | null>;
   rootClass: () => string;
   rootStyle: () => string;
-  gutters: () => SplitGutterView[];
-  gutterClass: (gutter: number) => string;
-  ariaOrientation: () => 'horizontal' | 'vertical';
-  disabledAttr: () => string | undefined;
-  tabindex: () => number;
-  draggingIndex: () => number;
-  onPointerdown: (event: PointerEvent, gutter: number) => void;
-  onPointermove: (event: PointerEvent) => void;
-  onPointerup: (event: PointerEvent, gutter: number) => void;
-  onKeydown: (event: KeyboardEvent, gutter: number) => void;
 }
 
 interface Registration {
@@ -423,9 +415,47 @@ export function setup(props: SplitProps): SplitRenderContext {
       },
       collapsed: (): boolean => isCollapsed(registration),
       toggle: (): void => setCollapsed(indexOf(), !isCollapsed(registration)),
+      gutter: gutterBinding(indexOf),
       dispose: (): void => {
         registrations.set((list) => list.filter((r) => r !== registration));
       },
+    };
+  };
+
+  /**
+   * The binding a pane uses to render the gutter that follows it.
+   *
+   * `gutterNumber` is the pane's position among the gutter ANCHORS, not among the panes: hiding a
+   * middle pane collapses its two gutters into one, so the two numberings diverge as soon as a pane
+   * is invisible. A trailing pane — or one with nothing visible after it — anchors no gutter, and
+   * `view()` returns null so the pane renders none.
+   */
+  const gutterBinding = (indexOf: () => number): SplitGutterBinding => {
+    const gutterNumber = (): number => anchors().indexOf(indexOf());
+
+    return {
+      view: (): SplitGutterView | null => {
+        const gutter: number = gutterNumber();
+        return gutter < 0 ? null : gutterViewFor(gutter);
+      },
+      class: (): string =>
+        [
+          'weave-split__gutter',
+          `weave-split__gutter--${direction()}`,
+          draggingIndex() === gutterNumber() ? 'weave-split__gutter--dragging' : '',
+          disabled() ? 'weave-split__gutter--disabled' : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      tabindex: (): number => (disabled() ? -1 : 0),
+      disabledAttr: (): string | undefined => (disabled() ? 'true' : undefined),
+      // APG calls a splitter that moves left/right a VERTICAL splitter: the value describes the
+      // separator bar, not the axis the panes are arranged along.
+      ariaOrientation: (): 'horizontal' | 'vertical' => (horizontal() ? 'vertical' : 'horizontal'),
+      onPointerdown: (event: PointerEvent): void => onPointerdown(event, gutterNumber()),
+      onPointermove,
+      onPointerup: (event: PointerEvent): void => onPointerup(event, gutterNumber()),
+      onKeydown: (event: KeyboardEvent): void => onKeydown(event, gutterNumber()),
     };
   };
 
@@ -689,6 +719,46 @@ export function setup(props: SplitProps): SplitRenderContext {
     return label;
   };
 
+  /**
+   * One gutter's rendered state, with its ARIA values taken from the DECLARED sizes rather than from
+   * a measured rect.
+   *
+   * This distinction is the whole point. The first render happens before the element is laid out, so
+   * anything derived from `getBoundingClientRect()` is zero at exactly the moment the values are
+   * first published — a splitter announced `aria-valuenow="0"` for a pane that was plainly a quarter
+   * of the width, and stayed wrong until something happened to re-measure. Sizes are already in the
+   * container's unit, so no measurement is needed to report them.
+   *
+   * Measurement is consulted only for a `'*'` pane, whose share genuinely is not knowable without it;
+   * before the first measure that reads 0, and corrects itself as soon as one lands.
+   */
+  const gutterViewFor = (gutter: number): SplitGutterView | null => {
+    const anchor: number | undefined = anchors()[gutter];
+    if (anchor === undefined) return null;
+
+    const current: SplitSize[] = sizes();
+    const total: number = containerPanePx();
+    const px: number[] | null = total > 0 ? resolvePixels(current, bounds(), unit(), total) : null;
+    const pixels: boolean = unit() === 'pixel';
+    const declaration: SplitPaneDeclaration | undefined = ordered()[anchor]?.declaration;
+
+    const measured: number = px ? Math.round(pixels ? px[anchor] : (px[anchor] / total) * 100) : 0;
+    const value = (size: SplitSize | undefined, wild: number): number =>
+      size === undefined || size === '*' ? wild : Math.round(size);
+
+    const valueNow: number = value(current[anchor], measured);
+    const line: number = anchor * 2 + 2;
+    return {
+      index: gutter,
+      style: horizontal() ? `grid-column: ${line} / span 1` : `grid-row: ${line} / span 1`,
+      label: labelFor(gutter),
+      valueNow,
+      valueMin: value(declaration?.min(), 0),
+      valueMax: value(declaration?.max(), pixels ? Math.round(total) : 100),
+      valueText: pixels ? `${valueNow}px` : `${valueNow}%`,
+    };
+  };
+
   return {
     host,
     rootClass: (): string => {
@@ -703,59 +773,5 @@ export function setup(props: SplitProps): SplitRenderContext {
       const template: string = gridTemplate(sizes(), bounds(), unit(), gutterSize());
       return horizontal() ? `grid-template-columns: ${template}` : `grid-template-rows: ${template}`;
     },
-    /**
-     * The gutters, with their ARIA values taken from the DECLARED sizes rather than from a measured
-     * rect.
-     *
-     * This distinction is the whole point. The first render happens before the element is laid out,
-     * so anything derived from `getBoundingClientRect()` is zero at exactly the moment the values are
-     * first published — a splitter announced `aria-valuenow="0"` for a pane that was plainly a
-     * quarter of the width, and stayed wrong until something happened to re-measure. Sizes are
-     * already in the container's unit, so no measurement is needed to report them.
-     *
-     * Measurement is consulted only for a `'*'` pane, whose share genuinely is not knowable without
-     * it; before the first measure that reads 0, and corrects itself as soon as one lands.
-     */
-    gutters: (): SplitGutterView[] => {
-      const list: number[] = anchors();
-      const current: SplitSize[] = sizes();
-      const panes: Registration[] = ordered();
-      const total: number = containerPanePx();
-      const px: number[] | null = total > 0 ? resolvePixels(current, bounds(), unit(), total) : null;
-      const pixels: boolean = unit() === 'pixel';
-
-      return list.map((anchor, index) => {
-        const line: number = anchor * 2 + 2;
-        const declaration: SplitPaneDeclaration | undefined = panes[anchor]?.declaration;
-        const measured: number = px
-          ? Math.round(pixels ? px[anchor] : (px[anchor] / total) * 100)
-          : 0;
-        const value = (size: SplitSize | undefined, wild: number): number =>
-          size === undefined || size === '*' ? wild : Math.round(size);
-
-        const valueNow: number = value(current[anchor], measured);
-        return {
-          index,
-          style: horizontal() ? `grid-column: ${line} / span 1` : `grid-row: ${line} / span 1`,
-          label: labelFor(index),
-          valueNow,
-          valueMin: value(declaration?.min(), 0),
-          valueMax: value(declaration?.max(), pixels ? Math.round(total) : 100),
-          valueText: pixels ? `${valueNow}px` : `${valueNow}%`,
-        };
-      });
-    },
-    gutterClass: (gutter: number): string =>
-      draggingIndex() === gutter ? 'weave-split__gutter weave-split__gutter--dragging' : 'weave-split__gutter',
-    // APG calls a splitter that moves left/right a VERTICAL splitter: the value describes the
-    // separator bar, not the axis the panes are arranged along.
-    ariaOrientation: (): 'horizontal' | 'vertical' => (horizontal() ? 'vertical' : 'horizontal'),
-    disabledAttr: (): string | undefined => (disabled() ? 'true' : undefined),
-    tabindex: (): number => (disabled() ? -1 : 0),
-    draggingIndex,
-    onPointerdown,
-    onPointermove,
-    onPointerup,
-    onKeydown,
   };
 }
