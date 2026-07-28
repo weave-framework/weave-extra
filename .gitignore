@@ -23,3 +23,6 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 *.swp
+
+# examples site build output
+examples/dist/

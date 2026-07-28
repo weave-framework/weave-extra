@@ -70,6 +70,8 @@
   },
   "scripts": {
     "build": "node tools/build-components.mjs && tsc -p tsconfig.build.json",
+    "examples": "weave dev --config examples/weave.config.ts",
+    "examples:build": "weave build --config examples/weave.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "check": "weave check",
     "verify:styles": "node tools/verify-styles.mjs",

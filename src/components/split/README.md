@@ -55,13 +55,14 @@ Sizes can be owned three ways: a plain array (you own it, only the callback fire
 | Key | Action |
 |---|---|
 | `←` `→` / `↑` `↓` | Move the gutter one `keyboardStep` (default 10px, snapped to `gutterStep`) |
-| `PageUp` / `PageDown` | Move one `keyboardPageStep` (default 10 × step) |
+| `PageUp` / `PageDown` | Grow / shrink the primary pane by `keyboardPageStep` (default 10 × step) |
 | `Home` / `End` | Move to the primary pane's smallest / largest allowed size |
 | `Enter` | Collapse the primary pane, or restore it to the size it had |
 | `Escape` | Abandon a drag in progress and put the sizes back |
 
 Horizontal arrows flip under RTL; vertical ones do not, because a vertical split reads top-to-bottom
-either way.
+either way. The Page keys always mean "a big step for the primary pane", whichever axis the split is
+on — the one reading that does not change meaning between a horizontal and a vertical splitter.
 
 ## Props
 

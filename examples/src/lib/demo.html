@@ -1,0 +1,9 @@
+<section class="ex-demo">
+  <h3 class="ex-demo__title">{{ props.title }}</h3>
+  @if (props.note) {
+    <p class="ex-demo__note">{{ props.note }}</p>
+  }
+  <div class="ex-demo__stage" style={{ stageStyle() }}>
+    <slot />
+  </div>
+</section>

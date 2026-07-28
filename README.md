@@ -28,6 +28,15 @@ Each bucket's README states its layout and rules.
 `@weave-framework/runtime` and `@weave-framework/ui` (>= 2.1) are **peer** dependencies — this package
 never bundles its own copy.
 
+## Examples
+
+A live page for everything in here — one section per extra, imported through the package's own name
+so the `exports` map is exercised the way a consumer resolves it.
+
+```bash
+pnpm run examples
+```
+
 ## Development
 
 ```bash

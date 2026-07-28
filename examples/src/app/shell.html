@@ -1,0 +1,35 @@
+<div class="ex-shell">
+  <aside class="ex-nav">
+    <header class="ex-nav__head">
+      <h1 class="ex-nav__title">Weave <em>Extra</em></h1>
+      <p class="ex-nav__sub">Live examples</p>
+    </header>
+
+    @for (group of groups(); track group.name) {
+      <nav class="ex-nav__group">
+        <h2 class="ex-nav__group-title">{{ group.name }}</h2>
+        <ul class="ex-nav__list">
+          @for (page of group.pages; track page.id) {
+            <li>
+              <a href={{ '#' + page.id }} class={{ linkClass(page.id) }}>
+                <span class="ex-nav__link-title">{{ page.title }}</span>
+                <span class="ex-nav__link-blurb">{{ page.blurb }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      </nav>
+    }
+
+    <footer class="ex-nav__foot">
+      <a href="https://github.com/weave-framework/weave-extra">weave-framework/weave-extra</a>
+    </footer>
+  </aside>
+
+  <main class="ex-main">
+    @switch (current()) {
+      @case ('split') { <SplitPage /> }
+      @default { <p class="ex-empty">Nothing selected.</p> }
+    }
+  </main>
+</div>

@@ -44,3 +44,8 @@ jobs:
       # build proves a consumer gets compiled components with a default export.
       - name: Build
         run: pnpm run build
+
+      # The examples site imports the components by package name, so this is also the check that the
+      # `exports` map resolves the way a consumer's build resolves it.
+      - name: Examples site
+        run: pnpm run examples:build

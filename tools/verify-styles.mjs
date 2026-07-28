@@ -12,12 +12,48 @@
  * rather than a separate style tree.
  */
 import { compile, NodePackageImporter } from 'sass';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repo = fileURLToPath(new URL('..', import.meta.url));
 const srcDir = join(repo, 'src');
+
+/**
+ * `weave.styleLang` in package.json is the one source of truth (the build reads it; a
+ * `weave.config.ts` cannot hold it because that file must be app-shaped). Any app in this repo
+ * restates it in its own config, and the two silently diverging is the failure worth gating: the
+ * loader pairs a component with `<base>.<styleLang>` and does NOT probe, so a mismatch renders every
+ * component unstyled with nothing anywhere reporting a problem.
+ */
+function verifyStyleLangAgreement() {
+  const declared = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8')).weave?.styleLang ?? 'css';
+  const configs = [];
+  const scan = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) scan(full);
+      else if (entry.name === 'weave.config.ts' || entry.name === 'weave.config.json') configs.push(full);
+    }
+  };
+  scan(repo);
+
+  let bad = 0;
+  for (const config of configs) {
+    const match = /styleLang\s*:?\s*['"](css|scss|sass)['"]/.exec(readFileSync(config, 'utf8'));
+    const found = match ? match[1] : 'css';
+    if (found !== declared) {
+      console.error(
+        `  x ${relative(repo, config).replace(/\\/g, '/')}: styleLang is "${found}" but ` +
+          `package.json weave.styleLang is "${declared}"`
+      );
+      bad++;
+    }
+  }
+  if (!bad) console.log(`  ok styleLang "${declared}" agreed by ${configs.length} config(s)`);
+  return bad;
+}
 
 function walk(dir, out = []) {
   for (const entry of readdirSync(dir)) {
@@ -30,13 +66,13 @@ function walk(dir, out = []) {
 
 console.log('\ntools/verify-styles.mjs');
 
+let failures = verifyStyleLangAgreement();
+
 const sheets = existsSync(srcDir) ? walk(srcDir).sort() : [];
-if (sheets.length === 0) {
+if (sheets.length === 0 && failures === 0) {
   console.log('ok  no component stylesheets yet\n');
   process.exit(0);
 }
-
-let failures = 0;
 
 for (const file of sheets) {
   const name = relative(repo, file).replace(/\\/g, '/');

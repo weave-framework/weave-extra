@@ -22,6 +22,7 @@ import {
   computed,
   effect,
   inject,
+  onCleanup,
   onDispose,
   onMount,
   provide,
@@ -281,16 +282,30 @@ export function setup(props: SplitProps): SplitRenderContext {
     containerSize.set(horizontal() ? rect.width : rect.height);
   };
 
-  onMount(() => {
-    measure();
-    // Percentages need no re-measure, but pixel sizes and every drag boundary are derived from the
-    // container's real size, so a resized window (or a parent that animates open) must re-measure.
-    const observer: ResizeObserver | null =
-      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => measure());
+  /**
+   * Observe the root element as soon as it EXISTS, keyed off the ref rather than off mount timing.
+   *
+   * The observer is not only for window resizes: a parent that animates open, a tab that reveals the
+   * splitter, or a font swap all change the space the panes share, and every drag boundary is derived
+   * from it. Keying off `host()` also re-attaches if the element is ever replaced.
+   *
+   * Nothing rendered depends on this having run — see `gutters()` for why. It exists so a drag that
+   * starts before any explicit measurement still has a real container size to work from.
+   */
+  effect(() => {
     const el: Element | null = host();
-    if (observer && el) observer.observe(el);
-    return () => observer?.disconnect();
+    if (!el) return;
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer: ResizeObserver = new ResizeObserver(() => measure());
+    observer.observe(el);
+    onCleanup(() => observer.disconnect());
   });
+
+  // Measure again once the element is actually in the document. The effect above runs when the ref is
+  // assigned, which is during render while the tree is still detached — `getBoundingClientRect()`
+  // there is all zeroes.
+  onMount(measure);
 
   /* ─────────────────────────── initial load ─────────────────────────── */
 
@@ -634,11 +649,14 @@ export function setup(props: SplitProps): SplitRenderContext {
         if (horizontal()) return;
         offset = step;
         break;
+      // Page keys always mean "a big step for the PRIMARY pane" — PageUp grows it, PageDown shrinks
+      // it — regardless of axis. That matches `<Slider>`, where PageUp raises the value, and it is
+      // the one reading that does not flip meaning between a horizontal and a vertical split.
       case 'PageUp':
-        offset = -page;
+        offset = page;
         break;
       case 'PageDown':
-        offset = page;
+        offset = -page;
         break;
       case 'Home':
       case 'End':
@@ -685,26 +703,45 @@ export function setup(props: SplitProps): SplitRenderContext {
       const template: string = gridTemplate(sizes(), bounds(), unit(), gutterSize());
       return horizontal() ? `grid-template-columns: ${template}` : `grid-template-rows: ${template}`;
     },
+    /**
+     * The gutters, with their ARIA values taken from the DECLARED sizes rather than from a measured
+     * rect.
+     *
+     * This distinction is the whole point. The first render happens before the element is laid out,
+     * so anything derived from `getBoundingClientRect()` is zero at exactly the moment the values are
+     * first published — a splitter announced `aria-valuenow="0"` for a pane that was plainly a
+     * quarter of the width, and stayed wrong until something happened to re-measure. Sizes are
+     * already in the container's unit, so no measurement is needed to report them.
+     *
+     * Measurement is consulted only for a `'*'` pane, whose share genuinely is not knowable without
+     * it; before the first measure that reads 0, and corrects itself as soon as one lands.
+     */
     gutters: (): SplitGutterView[] => {
       const list: number[] = anchors();
+      const current: SplitSize[] = sizes();
+      const panes: Registration[] = ordered();
       const total: number = containerPanePx();
-      const px: number[] = resolvePixels(sizes(), bounds(), unit(), total);
-      const paneBounds: PaneBounds[] = bounds();
+      const px: number[] | null = total > 0 ? resolvePixels(current, bounds(), unit(), total) : null;
+      const pixels: boolean = unit() === 'pixel';
 
       return list.map((anchor, index) => {
         const line: number = anchor * 2 + 2;
-        const bound: PaneBounds | undefined = paneBounds[anchor];
-        const asPercent = (value: number): number =>
-          total > 0 ? Math.round((value / total) * 100) : 0;
-        const valueNow: number = asPercent(px[anchor] ?? 0);
+        const declaration: SplitPaneDeclaration | undefined = panes[anchor]?.declaration;
+        const measured: number = px
+          ? Math.round(pixels ? px[anchor] : (px[anchor] / total) * 100)
+          : 0;
+        const value = (size: SplitSize | undefined, wild: number): number =>
+          size === undefined || size === '*' ? wild : Math.round(size);
+
+        const valueNow: number = value(current[anchor], measured);
         return {
           index,
           style: horizontal() ? `grid-column: ${line} / span 1` : `grid-row: ${line} / span 1`,
           label: labelFor(index),
           valueNow,
-          valueMin: bound ? asPercent(bound.min) : 0,
-          valueMax: bound && Number.isFinite(bound.max) ? asPercent(bound.max) : 100,
-          valueText: `${valueNow}%`,
+          valueMin: value(declaration?.min(), 0),
+          valueMax: value(declaration?.max(), pixels ? Math.round(total) : 100),
+          valueText: pixels ? `${valueNow}px` : `${valueNow}%`,
         };
       });
     },
