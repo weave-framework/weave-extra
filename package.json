@@ -13,6 +13,15 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
+    "./components/split": {
+      "sass": "./src/styles/components/split/_index.scss",
+      "types": "./src/components/split/split.ts",
+      "import": "./src/components/split/split.ts"
+    },
+    "./components/split-pane": {
+      "types": "./src/components/split/split-pane.ts",
+      "import": "./src/components/split/split-pane.ts"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -44,11 +53,23 @@
         "types": "./dist/index.d.ts",
         "import": "./dist/index.js"
       },
+      "./components/split": {
+        "sass": "./src/styles/components/split/_index.scss",
+        "types": "./dist/components/split/split.d.ts",
+        "import": "./dist/components/split/split.js"
+      },
+      "./components/split-pane": {
+        "types": "./dist/components/split/split-pane.d.ts",
+        "import": "./dist/components/split/split-pane.js"
+      },
       "./package.json": "./package.json"
     }
   },
   "scripts": {
+    "build": "node tools/build-components.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "check": "weave check",
+    "verify:styles": "node tools/verify-styles.mjs",
     "verify:authorship": "node tools/verify-authorship.mjs"
   },
   "peerDependencies": {
@@ -57,6 +78,7 @@
   },
   "devDependencies": {
     "@weave-framework/cli": "^2.1.0",
+    "@weave-framework/compiler": "^2.1.0",
     "@weave-framework/runtime": "^2.1.0",
     "@weave-framework/ui": "^2.1.0",
     "sass": "^1.101.0",

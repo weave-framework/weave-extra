@@ -1,0 +1,25 @@
+<div class={{ rootClass() }} ref={{ host }} style={{ rootStyle() }}>
+  <slot />
+  @for (gutter of gutters(); track gutter.index) {
+    <div
+      class={{ gutterClass(gutter.index) }}
+      style={{ gutter.style }}
+      role="separator"
+      tabindex={{ tabindex() }}
+      aria-orientation={{ ariaOrientation() }}
+      aria-label={{ gutter.label }}
+      aria-valuenow={{ gutter.valueNow }}
+      aria-valuemin={{ gutter.valueMin }}
+      aria-valuemax={{ gutter.valueMax }}
+      aria-valuetext={{ gutter.valueText }}
+      aria-disabled={{ disabledAttr() }}
+      on:pointerdown={{ (event: PointerEvent) => onPointerdown(event, gutter.index) }}
+      on:pointermove={{ onPointermove }}
+      on:pointerup={{ (event: PointerEvent) => onPointerup(event, gutter.index) }}
+      on:pointercancel={{ (event: PointerEvent) => onPointerup(event, gutter.index) }}
+      on:keydown={{ (event: KeyboardEvent) => onKeydown(event, gutter.index) }}
+    >
+      <span class="weave-split__grip" aria-hidden="true"></span>
+    </div>
+  }
+</div>

@@ -32,3 +32,15 @@ jobs:
 
       - name: Typecheck
         run: pnpm run typecheck
+
+      - name: Template check
+        run: pnpm run check
+
+      - name: Stylesheets
+        run: pnpm run verify:styles
+
+      # Last, and not optional: the dev exports resolve to `src/` and the loader compiles on the fly,
+      # so every gate above passes on a tree that would still ship an unusable package. Only the real
+      # build proves a consumer gets compiled components with a default export.
+      - name: Build
+        run: pnpm run build

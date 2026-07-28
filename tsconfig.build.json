@@ -1,12 +1,20 @@
 {
-  "//": "Emit build for publishing. tsconfig.json stays noEmit for type-checking only.",
-  "extends": "./tsconfig.json",
+  "//": "Emit build for publishing. Compiles the STAGED tree (`.compiled/`, written by tools/build-components.mjs), not `src/` — see that file for why a plain tsc over src ships a broken package. tsconfig.json stays noEmit and is the real type-check, over the real source.",
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "strict": true,
+    "skipLibCheck": true,
     "noEmit": false,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    "rootDir": ".compiled",
     "outDir": "dist"
   },
-  "include": ["src"]
+  "include": [".compiled/**/*.ts"],
+  "exclude": [".compiled/**/*.browser.ts", ".compiled/**/*.test.ts", ".compiled/**/*.spec.ts"]
 }

@@ -5,6 +5,8 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
+# Staged, pre-compiled tree (tools/build-components.mjs)
+.compiled/
 
 # Test / tooling artifacts
 test-results/

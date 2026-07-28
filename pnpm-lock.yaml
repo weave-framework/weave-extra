@@ -11,6 +11,9 @@ importers:
       '@weave-framework/cli':
         specifier: ^2.1.0
         version: 2.1.0
+      '@weave-framework/compiler':
+        specifier: ^2.1.0
+        version: 2.1.0(typescript@5.9.3)
       '@weave-framework/runtime':
         specifier: ^2.1.0
         version: 2.1.0
