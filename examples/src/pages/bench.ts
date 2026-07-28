@@ -15,25 +15,15 @@
  * RETURNS with the DOM already built — that call IS the build. Layout is the browser's separate cost,
  * forced afterwards by reading `offsetHeight`.
  *
- * KNOWN LIMIT — it takes THREE things together, and dropping any one of them makes it go away:
- *
- *   1. the row chrome is on (selection checkboxes, expand toggles, resize grips) — these are child
- *      components that write a `ref` signal DURING render;
- *   2. the column set changes on an already-rendered grid;
- *   3. there are enough rows — bisected on this machine to between 150 (clean) and 200 (overflows)
- *      when the rows keep their identity, which is what a columns menu does; 500 when they are
- *      replaced at the same time. The threshold is a stack budget, so it moves with the browser and
- *      with how many frames each row costs — treat ~150 as the observed order of magnitude, not a
- *      constant to design against.
- *
- * Then the stack overflows (`RangeError`) and the grid is left half-rendered. Row COUNT alone is not
- * the problem: with the chrome off, 1,000 rows plus a column change is clean, and a fresh render of
- * 1,000 rows with the chrome on is clean too.
- *
- * `batch` does not prevent it — it decrements its depth BEFORE flushing, so the render still runs with
- * the queue open. The runtime's `flush()` guards only on `batchDepth` and has no re-entrancy guard, so
- * a write made while rendering drains the queue on top of the render still running rather than
- * appending to it. Reproduces with plain `<Table>`; this page uses no plugin.
+ * FIXED, and kept here because the shape of it is worth remembering. Changing the column set used to
+ * overflow the stack and leave the grid half-rendered — one run left 360 of 1,000 rows still carrying
+ * a checkbox the render was removing. It needed three things at once: row chrome (components that
+ * write a `ref` DURING render), a column-set change on a rendered grid, and enough rendered rows
+ * (bisected to between 150 and 200 when the rows kept their identity). `batch` did not help, because
+ * it decrements its depth BEFORE flushing. The repair was a re-entrancy guard in the runtime's
+ * `flush()`, so a write made while rendering appends to the queue instead of draining it on top of the
+ * render still running. Verified here: 1,000 rows, column set toggled, zero errors, all 1,000
+ * checkboxes restored.
  */
 
 import { batch, computed, signal, type Computed, type Signal } from '@weave-framework/runtime';
@@ -98,6 +88,11 @@ export interface BenchPageContext {
   richVariant: () => string;
   toggleChrome: () => void;
   toggleRich: () => void;
+  virtual: () => boolean;
+  expandable: () => boolean;
+  virtualLabel: () => string;
+  virtualVariant: () => string;
+  toggleVirtual: () => void;
 }
 
 /** Deterministic pseudo-random so two runs of the same size are comparable. */
@@ -142,6 +137,12 @@ export function setup(): BenchPageContext {
   const chrome: Signal<boolean> = signal<boolean>(true);
   /** Component-backed cells vs the same columns rendered as plain text. */
   const rich: Signal<boolean> = signal<boolean>(true);
+  /**
+   * Virtual body — renders only the rows in view. It needs a `maxHeight` (no viewport without one)
+   * and refuses `expandable`, because a fixed-size window cannot map scroll offset to rows whose
+   * heights change when a detail row opens.
+   */
+  const virtual: Signal<boolean> = signal<boolean>(false);
 
   const columns: Computed<TableColumn<BenchRow>[]> = computed<TableColumn<BenchRow>[]>(() => {
     const out: TableColumn<BenchRow>[] = [
@@ -269,6 +270,16 @@ export function setup(): BenchPageContext {
     },
     chrome,
     rich,
+    virtual,
+    expandable: (): boolean => chrome() && !virtual(),
+    virtualLabel: (): string => (virtual() ? 'Virtual body: on' : 'Virtual body: off'),
+    virtualVariant: (): string => (virtual() ? 'primary' : 'ghost'),
+    toggleVirtual: (): void => {
+      const next: boolean = !virtual();
+      measure(`${rowCount()} × ${colCount()} — virtual ${next ? 'on' : 'off'}`, () => {
+        virtual.set(next);
+      });
+    },
     chromeLabel: (): string => (chrome() ? 'Chrome: on' : 'Chrome: off'),
     richLabel: (): string => (rich() ? 'Component cells: on' : 'Component cells: off'),
     chromeVariant: (): string => (chrome() ? 'primary' : 'ghost'),

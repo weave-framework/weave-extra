@@ -6,6 +6,37 @@ Each one is reproducible against `@weave-framework/runtime` / `@weave-framework/
 W-1 … W-3 were reported earlier and applied (`c10be506`, `d69a8f77`, `d1b7c6b0`). This file starts at
 W-4.
 
+**Status: all four are applied locally and verified against this package.**
+
+| | fix | weave commit |
+|---|---|---|
+| W-4 | `flush()` refuses re-entry | `a23aaa9b` (+ `e47c1c96`, size budget) |
+| W-5 | a component's synthesized default returns `Node` | `45e49bdc` |
+| W-6 | `Table` — a second header row | `ac43c6ff` |
+| W-7 | `Table` — a virtual body | `4962a963` |
+
+One more was needed to consume them: `e502f448` (compiler — a comment between the pieces of a split
+template is not a non-static template). Without it the published CLI cannot parse the new `Table`
+source at all.
+
+Verified here, production build, 20 columns:
+
+- **W-4** — 1000 rows, column set toggled off and back: zero errors, all 1000 checkboxes restored.
+  Before: `RangeError` and 360 of 1000 rows left carrying a checkbox the render was removing.
+- **W-7** — 1000 × 20 first render goes from **482 ms / 851 ms and 46 414 DOM nodes** to
+  **13.8 ms / 16.8 ms and 867 nodes**. The cost stops following the row count: 200 rows measures
+  6.2 ms, 1000 rows 13.8 ms, both at 867 nodes.
+- **W-5** — `icon.d.ts` now declares `=> Node`.
+- **W-6** — `headerRow?: (col) => Node | null` is on `TableProps`.
+
+Two things worth writing down while consuming them:
+
+1. `virtual` is read ONCE at setup, along with its guards (it throws without `maxHeight`, and throws
+   if `expandable` is also set). Flipping the prop on a mounted table does nothing — the mode has to
+   arrive with a new instance.
+2. `virtual` and `expandable` being mutually exclusive is a real constraint for this package: the
+   plugin's expandable detail row and a virtual body cannot be used together.
+
 ---
 
 ## W-4 — `flush()` has no re-entrancy guard, so a write during render recurses per row

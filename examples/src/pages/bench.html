@@ -24,6 +24,7 @@
   <div class="demo-controls">
     <Button variant={{ chromeVariant() }} on:click={{ toggleChrome }}>{{ chromeLabel() }}</Button>
     <Button variant={{ richVariant() }} on:click={{ toggleRich }}>{{ richLabel() }}</Button>
+    <Button variant={{ virtualVariant() }} on:click={{ toggleVirtual }}>{{ virtualLabel() }}</Button>
   </div>
   <div class="demo-controls">
     <Button variant="ghost" on:click={{ rebuild }}>Rebuild</Button>
@@ -34,10 +35,10 @@
     Column mix: {{ mixSummary() }} · actions fired: {{ actionCount() }}
   </p>
   <p class="demo-note">
-    <strong>Known limit:</strong> chrome on <em>and</em> a column-set change <em>and</em> enough rows
-    (bisected to between 150 and 200 keeping identity, 500 when replaced) overflows the stack and leaves the grid half-rendered.
-    Drop any one and it is clean — 1000 rows with the chrome off changes columns fine, and a fresh
-    render of 1000 rows with the chrome on is fine. Plain <code>&lt;Table&gt;</code>; no plugin.
+    <strong>Virtual body</strong> renders only the rows in view, so the cost stops following the row
+    count: 1000 rows lands at 867 DOM nodes instead of 46,414. It needs a <code>maxHeight</code>, it
+    refuses <code>expandable</code>, and it is read once at setup — a mounted table cannot be switched
+    into it, which is why the two modes below are separate instances.
   </p>
 
   <h2>Results</h2>
@@ -70,9 +71,22 @@
 
   <h2>The grid</h2>
   <div class="bench-stage" ref={{ host }}>
-    <Table columns={{ columns() }} dataSource={{ rows }} trackBy={{ (row: BenchRow) => row.id }}
-           maxHeight={{ 420 }} resizableColumns={{ chrome() }} selectable={{ chrome() }}
-           expandable={{ chrome() }} detail={{ (row: BenchRow) => 'Detail for row ' + row.id }}
-           ariaLabel="Benchmark grid" />
+    <!--
+      Two branches rather than one `virtual={{ virtual() }}`: the Table reads `virtual` ONCE, at
+      setup, and builds (or does not build) its scroller there. Flipping the prop on a mounted
+      instance therefore does nothing — the mode has to arrive with a new instance, which is what
+      the branch gives it. The guards are setup-time too: `virtual` throws without a `maxHeight`,
+      and throws outright if `expandable` is also set.
+    -->
+    @if (virtual()) {
+      <Table columns={{ columns() }} dataSource={{ rows }} trackBy={{ (row: BenchRow) => row.id }}
+             maxHeight={{ 420 }} resizableColumns={{ chrome() }} selectable={{ chrome() }}
+             virtual rowHeight={{ 34 }} ariaLabel="Benchmark grid (virtual)" />
+    } @else {
+      <Table columns={{ columns() }} dataSource={{ rows }} trackBy={{ (row: BenchRow) => row.id }}
+             maxHeight={{ 420 }} resizableColumns={{ chrome() }} selectable={{ chrome() }}
+             expandable={{ chrome() }} detail={{ (row: BenchRow) => 'Detail for row ' + row.id }}
+             ariaLabel="Benchmark grid" />
+    }
   </div>
 </article>
