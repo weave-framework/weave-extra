@@ -14,6 +14,7 @@
  * (types, the layout math, the context module, barrels) is copied verbatim.
  */
 import { compileComponent, extractSources, childImportCandidates } from '@weave-framework/compiler';
+import { compile as compileSass, NodePackageImporter } from 'sass';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +22,35 @@ import { fileURLToPath } from 'node:url';
 const repo = fileURLToPath(new URL('..', import.meta.url));
 const srcDir = join(repo, 'src');
 const outDir = join(repo, '.compiled');
+
+/**
+ * The sibling style extension, read from `package.json` → `weave.styleLang` rather than hard-coded.
+ *
+ * It cannot live in a `weave.config.ts`, because that file must be app-shaped — it requires `root` or
+ * `entry`, and this package is a library with neither. It must not be restated in two places either:
+ * the loader pairs `<base>.<styleLang>` with NO probing, so a build assuming a different extension
+ * from the dev server would ship components without their styles, and nothing would report it —
+ * a component with no sibling stylesheet is perfectly legal.
+ */
+const styleLang = (() => {
+  const pkg = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
+  const declared = pkg.weave?.styleLang;
+  if (declared !== undefined && !['css', 'scss', 'sass'].includes(declared)) {
+    throw new Error(`weave: package.json weave.styleLang is "${declared}" — expected css, scss or sass`);
+  }
+  return declared ?? 'css';
+})();
+
+/** Compile a component's sibling stylesheet to plain CSS, matching what the CLI loader does. */
+function compileStyles(tsPath) {
+  const file = tsPath.replace(/\.ts$/, `.${styleLang}`);
+  if (!existsSync(file)) return undefined;
+  if (styleLang === 'css') return readFileSync(file, 'utf8');
+  // `pkg:` URLs are what let a stylesheet reach a published package's sass entry; the CLI compiles
+  // with the same importer and no loadPaths. `charset: false` because this CSS is injected into a
+  // `<style>` element, where a leading `@charset` is an invalid at-rule rather than a declaration.
+  return compileSass(file, { importers: [new NodePackageImporter()], charset: false }).css;
+}
 
 /* ── child-tag resolution — mirrors `injectChildImports` in the CLI's esbuild plugin ── */
 
@@ -126,20 +156,52 @@ function typeDefault(code, hasSetup) {
   return code.slice(0, tail.index) + typed;
 }
 
+/** A stable id derived from the CSS text (djb2), so the injected `<style>` can be deduped. */
+function styleId(css) {
+  let h = 5381;
+  for (let i = 0; i < css.length; i++) h = (Math.imul(h, 33) ^ css.charCodeAt(i)) | 0;
+  return 'w-css-' + (h >>> 0).toString(36);
+}
+
+/**
+ * A `<style>`-injecting IIFE appended to the compiled module.
+ *
+ * `compileComponent` returns the scoped CSS SEPARATELY from the code. In an app build the CLI
+ * collects it into one stylesheet, but a published component has no such collector — a consumer who
+ * imports it from `dist/` would get the markup and none of the styles, which looks exactly like a
+ * broken component rather than a missing build step.
+ *
+ * Guarded two ways: by a content-hash id, because a module re-evaluated on navigation would
+ * otherwise append a duplicate sheet every time until style recalc grinds; and by a `document`
+ * check, because the same module is imported during server rendering where there is no head to
+ * append to.
+ */
+function cssInjector(css) {
+  if (!css) return '';
+  return (
+    `\n;(()=>{if(typeof document==="undefined")return;` +
+    `const id=${JSON.stringify(styleId(css))};if(document.getElementById(id))return;` +
+    `const s=document.createElement("style");s.id=id;s.textContent=${JSON.stringify(css)};` +
+    `document.head.appendChild(s);})();\n`
+  );
+}
+
 let componentCount = 0;
+let styledCount = 0;
 
 function compileOne(tsPath, decl, template) {
   const dir = dirname(tsPath);
-  const { code, components } = compileComponent(
-    { script: decl.script, template, styles: undefined },
+  const { code, components, css } = compileComponent(
+    { script: decl.script, template, styles: compileStyles(tsPath) },
     { filename: tsPath }
   );
   const wired = injectChildImports(code, components, dir, decl.script, tsPath);
   componentCount++;
+  if (css) styledCount++;
   // The compiler-generated `render` is untyped JS. Checking the real source is the `typecheck` gate's
   // job on `src/`; this staged tree is EMIT-ONLY, so silence tsc here — declaration emit (the typed
   // default, setup, exported types) still runs.
-  return '// @ts-nocheck\n' + typeDefault(wired, HAS_SETUP.test(decl.script ?? ''));
+  return '// @ts-nocheck\n' + typeDefault(wired, HAS_SETUP.test(decl.script ?? '')) + cssInjector(css);
 }
 
 /* ── stage the tree ── */
@@ -163,9 +225,11 @@ walk(srcDir, (full) => {
   mkdirSync(dirname(dest), { recursive: true });
 
   if (!full.endsWith('.ts')) {
-    // Templates are folded into the compiled module, so they must not be staged as loose files that
-    // a later build step would try to interpret again.
+    // A component's template and stylesheet are folded INTO its compiled module. Staging them as
+    // loose files would ship the same styles twice — once scoped inside the component, once as a
+    // stray sheet a consumer might include and wonder why it does nothing.
     if (full.endsWith('.html')) return;
+    if (full.endsWith(`.${styleLang}`) && existsSync(full.replace(/\.[^.]+$/, '.ts'))) return;
     cpSync(full, dest);
     copied++;
     return;
@@ -185,5 +249,6 @@ walk(srcDir, (full) => {
 });
 
 process.stdout.write(
-  `\nok  staged @weave-framework/extra -> .compiled/ (${componentCount} component(s) compiled, ${copied} module(s) copied)\n`
+  `\nok  staged @weave-framework/extra -> .compiled/ ` +
+    `(${componentCount} component(s) compiled, ${styledCount} with styles, ${copied} module(s) copied)\n`
 );

@@ -1,0 +1,20 @@
+// SplitPane — the pane box. Scoped to this component by the compiler.
+//
+// A pane styles only what it renders. Its grid PLACEMENT is written inline by the container (the
+// track it occupies is the container's to decide); everything here is the box the content sits in.
+
+.weave-split__pane {
+  position: relative;
+  // Without both floors an overflowing child sets an implicit min-content floor on the grid track,
+  // and the pane refuses to shrink past its content — which the user sees as a gutter that jams for
+  // no visible reason.
+  min-inline-size: 0;
+  min-block-size: 0;
+  overflow: auto;
+}
+
+.weave-split__pane--collapsed {
+  // At zero width a scrollbar would still claim space and re-open the track it was just collapsed
+  // out of.
+  overflow: hidden;
+}

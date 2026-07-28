@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "description": "Extras for Weave — additional components, component extensions and plugins built on @weave-framework/ui.",
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/components/**/*.js"
+  ],
   "license": "MIT",
   "main": "./src/index.ts",
   "module": "./src/index.ts",
@@ -14,7 +16,6 @@
       "import": "./src/index.ts"
     },
     "./components/split": {
-      "sass": "./src/styles/components/split/_index.scss",
       "types": "./src/components/split/split.ts",
       "import": "./src/components/split/split.ts"
     },
@@ -25,11 +26,14 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist",
-    "src/**/*.scss"
+    "dist"
   ],
   "engines": {
     "node": ">=18"
+  },
+  "weave": {
+    "//": "Component style language — a component's stylesheet is `<base>.<styleLang>` beside it. This lives here rather than in a weave.config.ts because that file must be app-shaped (it requires `root` or `entry`) and this package is a library. The build reads it, and any app in this repo (a demo, a test harness) must import it rather than restate it — the loader pairs styles by name with NO probing, so a mismatch means components render unstyled with nothing reporting it.",
+    "styleLang": "scss"
   },
   "repository": {
     "type": "git",
@@ -54,7 +58,6 @@
         "import": "./dist/index.js"
       },
       "./components/split": {
-        "sass": "./src/styles/components/split/_index.scss",
         "types": "./dist/components/split/split.d.ts",
         "import": "./dist/components/split/split.js"
       },

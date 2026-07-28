@@ -1,0 +1,137 @@
+// Split — the container: grid frame, gutters, grip. Scoped to this component by the compiler.
+//
+// Behaviour lives in split.ts (pointer-capture drag, APG keyboard, collapse); this is the visual.
+// The grid TEMPLATE is written inline by the component, because the track list is derived from live
+// sizes — only what does not change per frame lives here.
+//
+// Every colour and measure reads through `var(--weave-split-*, var(--weave-color-*, <literal>))`:
+// override the component token to restyle just the splitter, set the Weave theme to have it follow
+// the app, or include neither and still get something that looks deliberate. A component that needs
+// a stylesheet wired up before it stops looking broken is a component people wire up wrong.
+
+.weave-split {
+  display: grid;
+  // A splitter is only useful when it fills something. Both floors stop a pane's content from
+  // jamming a track open — the usual cause of "the gutter refuses to drag past this point".
+  block-size: 100%;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
+}
+
+// Suppress selection for the whole subtree while dragging, rather than reaching into the pane's
+// class from here: the pane is a different component with its own scope, and `user-select`
+// inherits, so the container is both the correct and the only clean place to say this.
+.weave-split--dragging {
+  user-select: none;
+}
+
+.weave-split__gutter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--weave-split-gutter, transparent);
+  // Let a pointer drag resize, rather than scroll the page under it.
+  touch-action: none;
+  transition: background var(--weave-split-duration, var(--weave-motion-fast, 0.15s)) ease;
+}
+
+// The hairline seam. A pseudo-element rather than a border, so the hit area stays the full gutter
+// width while the visible line stays 1px — a 1px target is unusable with a mouse and impossible
+// with a finger.
+.weave-split__gutter::before {
+  content: '';
+  position: absolute;
+  background: var(--weave-split-line, var(--weave-color-line, rgba(20, 22, 28, 0.16)));
+}
+
+.weave-split__grip {
+  display: block;
+  background: var(--weave-split-grip, var(--weave-color-neutral, #9a9ca3));
+  border-radius: var(--weave-split-grip-radius, 1px);
+  transition: background var(--weave-split-duration, var(--weave-motion-fast, 0.15s)) ease;
+}
+
+/* ── horizontal: panes side by side, so the separator is a vertical bar ── */
+
+.weave-split--horizontal > .weave-split__gutter {
+  cursor: col-resize;
+}
+
+.weave-split--horizontal > .weave-split__gutter::before {
+  inset-block: 0;
+  inset-inline-start: 50%;
+  inline-size: var(--weave-split-line-thickness, 1px);
+  transform: translateX(-50%);
+}
+
+.weave-split--horizontal > .weave-split__gutter > .weave-split__grip {
+  inline-size: var(--weave-split-grip-thickness, 2px);
+  block-size: var(--weave-split-grip-length, 24px);
+}
+
+/* ── vertical: panes stacked, so the separator is a horizontal bar ── */
+
+.weave-split--vertical > .weave-split__gutter {
+  cursor: row-resize;
+}
+
+.weave-split--vertical > .weave-split__gutter::before {
+  inset-inline: 0;
+  inset-block-start: 50%;
+  block-size: var(--weave-split-line-thickness, 1px);
+  transform: translateY(-50%);
+}
+
+.weave-split--vertical > .weave-split__gutter > .weave-split__grip {
+  inline-size: var(--weave-split-grip-length, 24px);
+  block-size: var(--weave-split-grip-thickness, 2px);
+}
+
+/* ── state ── */
+
+.weave-split__gutter:hover,
+.weave-split__gutter--dragging {
+  background: var(--weave-split-gutter-hover, var(--weave-color-field, #ecedf0));
+}
+
+.weave-split__gutter:hover > .weave-split__grip,
+.weave-split__gutter--dragging > .weave-split__grip {
+  background: var(--weave-split-grip-active, var(--weave-color-accent, #4c6286));
+}
+
+.weave-split__gutter:focus-visible {
+  // Inset, not outset: the gutter is a few pixels wide, so an outward ring would spill across both
+  // panes and read as the panes being selected rather than the splitter being focused.
+  outline: var(--weave-split-focus-width, 2px) solid
+    var(--weave-split-focus, var(--weave-color-accent, #4c6286));
+  outline-offset: var(--weave-split-focus-offset, -2px);
+}
+
+.weave-split--disabled > .weave-split__gutter {
+  cursor: default;
+  background: var(--weave-split-gutter, transparent);
+}
+
+.weave-split--disabled > .weave-split__gutter > .weave-split__grip {
+  opacity: 0.4;
+}
+
+// Only changes that did NOT come from a pointer drag animate. Animating during a drag makes the
+// gutter lag the pointer, which reads as the component being slow rather than smooth.
+.weave-split--animated {
+  transition:
+    grid-template-columns var(--weave-split-duration, var(--weave-motion-fast, 0.15s)) ease,
+    grid-template-rows var(--weave-split-duration, var(--weave-motion-fast, 0.15s)) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  // Not `none`: a 0.001ms transition still fires transitionend, so anything waiting on that event
+  // keeps working instead of hanging for a listener that never fires.
+  .weave-split--animated,
+  .weave-split__gutter,
+  .weave-split__grip {
+    transition-duration: 0.001ms;
+  }
+}

@@ -13,10 +13,8 @@ import SplitPane from '@weave-framework/extra/components/split-pane';
   <SplitPane>editor</SplitPane>
 </Split>
 ```
-```scss
-@use 'pkg:@weave-framework/extra/components/split' as split;
-@include split.all();
-```
+No stylesheet to include: the styles live beside the component (`split.scss` next to `split.ts`), get
+scoped to it by the compiler, and compile into the module. Importing the component brings them.
 
 ## How it is laid out
 
@@ -103,6 +101,30 @@ Callbacks: `onSizesChange`, `onReady`, `onLoadError`, `onDragStart`, `onDrag`, `
 | `collapsedSize` | `0` | Size to collapse to |
 | `collapsed` | — | Controlled collapsed state |
 | `onCollapsedChange` | — | Fires on collapse and expand |
+
+## Theming
+
+Every colour and measure reads through a three-step fallback:
+
+```scss
+background: var(--weave-split-grip, var(--weave-color-neutral, #9a9ca3));
+```
+
+Set `--weave-split-*` to restyle just the splitter, apply the Weave theme to have it follow the app,
+or do neither and still get something that looks deliberate.
+
+| Token | Falls back to |
+|---|---|
+| `--weave-split-gutter` | `transparent` |
+| `--weave-split-gutter-hover` | `--weave-color-field` |
+| `--weave-split-line` | `--weave-color-line` |
+| `--weave-split-grip` | `--weave-color-neutral` |
+| `--weave-split-grip-active` | `--weave-color-accent` |
+| `--weave-split-focus` | `--weave-color-accent` |
+| `--weave-split-duration` | `--weave-motion-fast` |
+| `--weave-split-line-thickness` | `1px` |
+| `--weave-split-grip-length` / `-thickness` / `-radius` | `24px` / `2px` / `1px` |
+| `--weave-split-focus-width` / `-offset` | `2px` / `-2px` |
 
 ## Notes on the implementation
 

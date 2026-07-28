@@ -1,60 +1,60 @@
 /**
- * Gate: every component stylesheet compiles, emits the tokens it declares, and does so without
- * warnings.
+ * Gate: every component stylesheet compiles, produces CSS, and does so without warnings.
  *
- * A token typo is invisible at the CSS level — `--weave-split-gutter-hovr: #eee` is a perfectly
- * valid custom property that no rule will ever read, so the component just renders slightly wrong
- * with nothing to explain why. Sass reports it as a WARNING, which a plain `sass` invocation prints
- * and then exits 0 on. This treats warnings as failures so the typo cannot ship.
+ * Sass reports an undefined variable, a deprecated API or a bad `@use` as a WARNING, and a plain
+ * `sass` invocation prints it and then exits 0. That is the worst way to fail — the component renders
+ * slightly wrong and the build says nothing. Warnings are failures here.
  *
- * It also asserts the emitted CSS actually contains `--weave-<name>-*` declarations: a stylesheet
- * that compiles to nothing is the other silent failure, and "it built fine" would otherwise cover it.
+ * A stylesheet that compiles to NOTHING is the other silent failure: "it built fine" covers it
+ * completely, so an empty result fails too.
+ *
+ * Component styles live beside their component (`split.ts` → `split.scss`), so this walks `src/`
+ * rather than a separate style tree.
  */
-import { compileString, NodePackageImporter } from 'sass';
-import { readdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { compile, NodePackageImporter } from 'sass';
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const repo = fileURLToPath(new URL('..', import.meta.url));
-const componentsDir = join(repo, 'src/styles/components');
+const srcDir = join(repo, 'src');
+
+function walk(dir, out = []) {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walk(full, out);
+    else if (/\.(scss|sass)$/.test(entry) && !entry.startsWith('_')) out.push(full);
+  }
+  return out;
+}
 
 console.log('\ntools/verify-styles.mjs');
 
-if (!existsSync(componentsDir)) {
+const sheets = existsSync(srcDir) ? walk(srcDir).sort() : [];
+if (sheets.length === 0) {
   console.log('ok  no component stylesheets yet\n');
   process.exit(0);
 }
 
-const names = readdirSync(componentsDir, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => entry.name)
-  .sort();
-
 let failures = 0;
 
-for (const name of names) {
-  const entry = join(componentsDir, name, '_index.scss');
-  if (!existsSync(entry)) {
-    console.error(`  x ${name}: no _index.scss`);
+for (const file of sheets) {
+  const name = relative(repo, file).replace(/\\/g, '/');
+
+  // A stylesheet beside a `.ts` is a COMPONENT stylesheet: the loader pairs them by name, so one
+  // without a partner is either a typo in the filename or a sheet nobody will ever load.
+  if (!existsSync(file.replace(/\.[^.]+$/, '.ts'))) {
+    console.error(`  x ${name}: no sibling .ts — nothing pairs this stylesheet with a component`);
     failures++;
     continue;
   }
 
-  // The theme must be included too — the component's tokens resolve to `var(--weave-color-*)`, and
-  // compiling without it would pass while emitting references to variables that do not exist.
-  const source = [
-    `@use 'pkg:@weave-framework/ui' as weave;`,
-    `@use './${name}/index' as component;`,
-    `@include weave.theme();`,
-    `@include component.all();`,
-  ].join('\n');
-
   const warnings = [];
   try {
-    const result = compileString(source, {
-      // Anchor relative `@use` at the components directory, so `./<name>/index` resolves.
-      url: pathToFileURL(join(componentsDir, `__verify-${name}.scss`)),
+    const result = compile(file, {
       importers: [new NodePackageImporter()],
+      // Match the build exactly — this CSS ends up inside a `<style>` element.
+      charset: false,
       logger: {
         warn(message, options) {
           warnings.push(`${message}${options?.span?.url ? ` (${options.span.url})` : ''}`);
@@ -62,9 +62,8 @@ for (const name of names) {
       },
     });
 
-    const emitted = new RegExp(`--weave-${name}-[a-z0-9-]+\\s*:`).test(result.css);
-    if (!emitted) {
-      console.error(`  x ${name}: compiled but emitted no --weave-${name}-* custom properties`);
+    if (result.css.trim().length === 0) {
+      console.error(`  x ${name}: compiled to no CSS`);
       failures++;
       continue;
     }
@@ -84,4 +83,4 @@ if (failures) {
   console.error(`\nx ${failures} stylesheet problem(s).\n`);
   process.exit(1);
 }
-console.log(`ok  ${names.length} component stylesheet(s) compile cleanly\n`);
+console.log(`ok  ${sheets.length} component stylesheet(s) compile cleanly\n`);
