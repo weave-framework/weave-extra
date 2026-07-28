@@ -15,19 +15,22 @@
  * RETURNS with the DOM already built — that call IS the build. Layout is the browser's separate cost,
  * forced afterwards by reading `offsetHeight`.
  *
- * KNOWN LIMIT — changing the column set overflows the stack (`RangeError: Maximum call stack size
- * exceeded`) and leaves the grid half-rendered. It reproduces with plain `<Table>`; this page uses no
- * plugin. Two paths, two thresholds:
+ * KNOWN LIMIT — it takes THREE things together, and dropping any one of them makes it go away:
  *
- *   - rows KEEP their identity (the column set alone changes — what a columns menu does): fails at
- *     200 rows, survives at 50;
- *   - rows are replaced at the same time (new keys, so the list rebuilds): survives at 200, fails at
- *     500 and 1000.
+ *   1. the row chrome is on (selection checkboxes, expand toggles, resize grips) — these are child
+ *      components that write a `ref` signal DURING render;
+ *   2. the column set changes on an already-rendered grid;
+ *   3. there are enough rows — 200 when the rows keep their identity (what a columns menu does), 500
+ *      when they are replaced at the same time. 50 is fine either way.
  *
- * `batch` does not prevent either, because it decrements its depth BEFORE flushing — the render still
- * runs with the queue open. The runtime's `flush()` has no re-entrancy guard, and `setRef` writes a
- * signal during render, so a write made while rendering drains the queue on top of the render that is
- * still running rather than appending to it.
+ * Then the stack overflows (`RangeError`) and the grid is left half-rendered. Row COUNT alone is not
+ * the problem: with the chrome off, 1,000 rows plus a column change is clean, and a fresh render of
+ * 1,000 rows with the chrome on is clean too.
+ *
+ * `batch` does not prevent it — it decrements its depth BEFORE flushing, so the render still runs with
+ * the queue open. The runtime's `flush()` guards only on `batchDepth` and has no re-entrancy guard, so
+ * a write made while rendering drains the queue on top of the render still running rather than
+ * appending to it. Reproduces with plain `<Table>`; this page uses no plugin.
  */
 
 import { batch, computed, signal, type Computed, type Signal } from '@weave-framework/runtime';
