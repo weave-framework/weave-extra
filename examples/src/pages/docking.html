@@ -23,7 +23,9 @@
     title="One split, five configurations"
     note="Drag the gutter, then dock the panel elsewhere — it keeps the share you gave it rather than inheriting whatever was on that side."
     height="320px"
+    snippet="docking"
   >
+    <!-- #region docking -->
     <Split
       direction={{ layout().direction }}
       sizes={{ sizes() }}
@@ -54,6 +56,7 @@
         </SplitPane>
       }
     </Split>
+    <!-- #endregion -->
   </Demo>
 
   <p class="ex-readout">layout: <code>{{ summary() }}</code></p>

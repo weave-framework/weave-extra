@@ -1,0 +1,80 @@
+.ex-code {
+  margin-block-start: 10px;
+  border: 1px solid var(--weave-color-line);
+  border-radius: var(--weave-shape-radius);
+  overflow: hidden;
+  background: var(--weave-color-surface);
+}
+
+.ex-code__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 6px 4px 8px;
+  border-block-end: 1px solid var(--weave-color-line);
+  background: var(--weave-color-field);
+}
+
+.ex-code__tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.ex-code__tab,
+.ex-code__copy,
+.ex-code__name {
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--weave-color-sub);
+}
+
+.ex-code__tab,
+.ex-code__copy {
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ex-code__tab:hover,
+.ex-code__copy:hover {
+  background: var(--weave-color-surface);
+}
+
+.ex-code__tab--active {
+  color: var(--weave-color-ink);
+  background: var(--weave-color-surface);
+}
+
+.ex-code__copy {
+  flex: none;
+}
+
+.ex-code__body {
+  margin: 0;
+  padding: 12px 14px;
+  // Long lines scroll inside the block; the page itself must never scroll sideways.
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  tab-size: 2;
+  color: var(--weave-color-ink);
+}
+
+.ex-code__body code {
+  padding: 0;
+  background: none;
+  font: inherit;
+  white-space: pre;
+}
+
+.ex-code__missing {
+  margin: 0;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: var(--weave-color-error);
+}

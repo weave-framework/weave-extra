@@ -1,10 +1,13 @@
 /**
- * A framed live area for one example: heading, a line of context, and a stage of a fixed height.
+ * A framed live area for one example: heading, a line of context, a stage of a fixed height, and the
+ * code behind it.
  *
  * The height is not decoration. `<Split>` fills its container, so a stage with no height collapses
  * to nothing — which is the single most common way a splitter appears "broken" in a real app. Every
  * example here states its height out loud so the reason is visible rather than incidental.
  */
+
+import Code from './code.js';
 
 export interface DemoProps {
   title: string;
@@ -12,6 +15,8 @@ export interface DemoProps {
   note?: string;
   /** CSS height for the stage. */
   height?: string;
+  /** Region id to show the source for. Omit for a demo with no code worth quoting. */
+  snippet?: string;
 }
 
 export const propDefaults = { height: '260px' } as const;
@@ -27,3 +32,5 @@ export function setup(props: DemoProps): DemoContext {
     stageStyle: (): string => `height: ${props.height ?? '260px'}`,
   };
 }
+
+export { Code };

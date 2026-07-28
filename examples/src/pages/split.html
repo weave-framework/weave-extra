@@ -12,27 +12,38 @@
     </p>
   </header>
 
-  <Demo title="Horizontal" note="Three panes. The outer two hold a minimum of 15%; the middle one takes what is left.">
+  <Demo title="Horizontal" note="Three panes. The outer two hold a minimum of 15%; the middle one takes what is left."
+    snippet="split-horizontal"
+  >
+    <!-- #region split-horizontal -->
     <Split bind:sizes={{ basicSizes }}>
       <SplitPane min={{ 15 }}><div class="ex-fill">left</div></SplitPane>
       <SplitPane><div class="ex-fill ex-fill--alt">middle</div></SplitPane>
       <SplitPane min={{ 15 }}><div class="ex-fill">right</div></SplitPane>
     </Split>
+    <!-- #endregion -->
   </Demo>
   <p class="ex-readout">sizes: <code>{{ format(basicSizes()) }}</code></p>
 
-  <Demo title="Vertical" note="Same component, stacked. Only the horizontal arrows flip under RTL, so a vertical split reads top-to-bottom either way.">
+  <Demo title="Vertical" note="Same component, stacked. Only the horizontal arrows flip under RTL, so a vertical split reads top-to-bottom either way."
+    snippet="split-vertical"
+  >
+    <!-- #region split-vertical -->
     <Split direction="vertical" bind:sizes={{ verticalSizes }}>
       <SplitPane min={{ 20 }}><div class="ex-fill">top</div></SplitPane>
       <SplitPane min={{ 20 }}><div class="ex-fill ex-fill--alt">bottom</div></SplitPane>
     </Split>
+    <!-- #endregion -->
   </Demo>
 
   <Demo
     title="Nested"
     note="A vertical split inside a horizontal one — the usual editor layout. Each container owns its own sizes."
     height="320px"
+  
+    snippet="split-nested"
   >
+    <!-- #region split-nested -->
     <Split bind:sizes={{ ideSizes }}>
       <SplitPane min={{ 12 }} max={{ 40 }}><div class="ex-fill">explorer</div></SplitPane>
       <SplitPane>
@@ -42,12 +53,16 @@
         </Split>
       </SplitPane>
     </Split>
+    <!-- #endregion -->
   </Demo>
 
   <Demo
     title="Collapsible"
     note="Press Enter on the gutter, double-click it, or use the button. The pane remembers the size it had before collapsing."
+  
+    snippet="split-collapsible"
   >
+    <!-- #region split-collapsible -->
     <Split bind:sizes={{ panelSizes }} gutterDblClickDuration={{ 250 }}>
       <SplitPane
         min={{ 14 }}
@@ -63,23 +78,31 @@
         </div>
       </SplitPane>
     </Split>
+    <!-- #endregion -->
   </Demo>
 
   <Demo
     title="Bounds and locks"
     note="The middle pane is locked at its size — a drag on either gutter cascades past it to the pane beyond."
+  
+    snippet="split-bounds"
   >
+    <!-- #region split-bounds -->
     <Split bind:sizes={{ boundsSizes }} restrictMove={{ false }}>
       <SplitPane min={{ 10 }} max={{ 45 }}><div class="ex-fill">min 10 · max 45</div></SplitPane>
       <SplitPane lock><div class="ex-fill ex-fill--locked">locked</div></SplitPane>
       <SplitPane min={{ 10 }}><div class="ex-fill">min 10</div></SplitPane>
     </Split>
+    <!-- #endregion -->
   </Demo>
 
   <Demo
     title="Persistence"
     note="Sizes load asynchronously on mount and are written back once per interaction — never per frame, and never echoing the load. Reload the page to see them restored."
+  
+    snippet="split-persistence"
   >
+    <!-- #region split-persistence -->
     <Split
       bind:sizes={{ savedSizes }}
       loadSizes={{ loadSaved }}
@@ -89,6 +112,7 @@
       <SplitPane min={{ 15 }}><div class="ex-fill">saved left</div></SplitPane>
       <SplitPane min={{ 15 }}><div class="ex-fill ex-fill--alt">saved right</div></SplitPane>
     </Split>
+    <!-- #endregion -->
   </Demo>
 
   <div class="ex-log">

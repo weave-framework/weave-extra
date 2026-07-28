@@ -6,4 +6,7 @@
   <div class="ex-demo__stage" style={{ stageStyle() }}>
     <slot />
   </div>
+  @if (props.snippet) {
+    <Code id={{ props.snippet }} />
+  }
 </section>

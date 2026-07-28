@@ -75,6 +75,7 @@ export function setup(): SplitPageContext {
     }
   };
 
+  // #region split-persistence
   /**
    * Deliberately async and deliberately slow. A store behind the network is the case this component
    * has to survive, and a synchronous `localStorage.getItem` would hide every ordering problem that
@@ -99,6 +100,7 @@ export function setup(): SplitPageContext {
       [{ id: nextId++, reason: describe(reason), sizes: format(sizes), persisted }, ...list].slice(0, 14)
     );
   };
+  // #endregion
 
   const clearSaved = (): void => {
     localStorage.removeItem(STORAGE_KEY);

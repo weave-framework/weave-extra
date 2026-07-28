@@ -61,6 +61,8 @@ export function setup(): DockingPageContext {
     { value: 'undocked', label: 'Undock' },
   ];
 
+  // #region docking
+  // One signal decides everything: the axis, the pane order, and whether the panel exists at all.
   const layout = computed<Layout>(() => {
     const value: Dock = dock();
     const panelFirst: boolean = value === 'left' || value === 'top';
@@ -70,12 +72,23 @@ export function setup(): DockingPageContext {
     return { direction: vertical ? 'vertical' : 'horizontal', panes, panelFirst };
   });
 
-  // The panel keeps its share whichever edge it is docked to; the main pane takes the rest.
+  // Sizes are derived from ONE number, so the panel's share travels with the panel instead of
+  // staying with whichever position it happened to occupy.
   const sizes = computed<SplitSize[]>(() => {
     const { panes, panelFirst } = layout();
     if (panes.length < 2) return ['*'];
     return panelFirst ? [panelSize(), '*'] : ['*', panelSize()];
   });
+
+  // Read the panel's own entry back, wherever it currently sits.
+  const onSizesChange = (next: SplitSize[], reason: SplitChangeReason): void => {
+    if (reason.type === 'load' || reason.type === 'panes') return;
+    const { panes, panelFirst } = layout();
+    if (panes.length < 2) return;
+    const value: SplitSize = next[panelFirst ? 0 : 1];
+    if (value !== '*') panelSize.set(Math.round(value));
+  };
+  // #endregion
 
   return {
     dock,
@@ -83,15 +96,7 @@ export function setup(): DockingPageContext {
     options,
     layout,
     sizes,
-    onSizesChange: (next: SplitSize[], reason: SplitChangeReason): void => {
-      // Read the panel's own entry back, wherever it currently sits. Writing the whole array back
-      // would re-introduce the positional coupling this page exists to avoid.
-      if (reason.type === 'load' || reason.type === 'panes') return;
-      const { panes, panelFirst } = layout();
-      if (panes.length < 2) return;
-      const value: SplitSize = next[panelFirst ? 0 : 1];
-      if (value !== '*') panelSize.set(Math.round(value));
-    },
+    onSizesChange,
     setDock: (value: Dock): void => {
       dock.set(value);
     },

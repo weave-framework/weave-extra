@@ -14,7 +14,10 @@
     title="Native HTML"
     note="A real form and a scrolling list. Type in the field, arrow through the select, scroll the list — then drag or key the gutter."
     height="300px"
+  
+    snippet="inside-native"
   >
+    <!-- #region inside-native -->
     <Split bind:sizes={{ nativeSizes }} gutterLabel="Resize the native panes">
       <SplitPane min={{ 22 }}>
         <form class="ex-form" on:submit={{ onSubmit }}>
@@ -60,13 +63,17 @@ lines</textarea>
         </div>
       </SplitPane>
     </Split>
+    <!-- #endregion -->
   </Demo>
 
   <Demo
     title="Weave UI"
     note="The same shapes built from @weave-framework/ui. The Select's panel is portalled, so a pane's overflow never clips it."
     height="300px"
+  
+    snippet="inside-weave"
   >
+    <!-- #region inside-weave -->
     <Split bind:sizes={{ weaveSizes }} gutterLabel="Resize the component panes">
       <SplitPane min={{ 22 }}>
         <div class="ex-form">
@@ -86,6 +93,7 @@ lines</textarea>
         </div>
       </SplitPane>
     </Split>
+    <!-- #endregion -->
   </Demo>
 
   <div class="ex-proof" on:keydown={{ onAreaKeydown }}>
