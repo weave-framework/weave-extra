@@ -1,0 +1,82 @@
+// Cross-component chrome — GLOBAL on purpose.
+//
+// A component's own stylesheet is scoped to the elements that component renders. Every rule here
+// targets an element rendered by `@weave-framework/ui` — the Sidenav drawer, an Expansion header, a
+// Card's box — so a scoped rule would silently never match. That is exactly what happened first:
+// the drawer kept its default width and the group headers kept their default casing, with nothing
+// reporting a problem, because a selector that matches nothing is not an error.
+//
+// The Weave documentation site keeps the same kind of rules in its own global chrome sheet.
+//
+// Emitted through a mixin rather than at `@use` time on purpose: `@use` must precede every rule,
+// which put these BEFORE `weave.all-styles()` in the output, where the library's own rules then
+// overrode every one of them at equal specificity. The drawer kept its default width and the group
+// headers their default casing, with nothing reporting a problem.
+
+$topbar-height: 52px;
+$sidebar-width: 248px;
+
+@mixin chrome() {
+  /* ── layout shell ── */
+
+  .weave-sidenav.ex-layout {
+    // The drawer's width is the Sidenav's token, not a width on the element inside it. Setting the
+    // inner element instead left it wider than the track the layout reserved, and the content pane
+    // started underneath the sidebar.
+    --weave-sidenav-width: #{$sidebar-width};
+    block-size: calc(100vh - #{$topbar-height});
+  }
+
+  /* ── sidebar accordion ── */
+
+  // Strip the boxed accordion look: each group header reads as an uppercase section label with the
+  // library's own open/close marker, and its links fill the region below.
+  .ex-nav.weave-expansion {
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+  }
+
+  .ex-nav .weave-expansion__panel + .weave-expansion__panel {
+    border-block-start: 0;
+  }
+
+  .ex-nav .weave-expansion__header {
+    min-height: 0;
+    padding: 8px 10px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--weave-color-sub);
+    border-radius: 6px;
+  }
+
+  .ex-nav .weave-expansion__content {
+    padding: 0 0 6px;
+  }
+
+  /* ── demo surfaces ── */
+
+  // The stage is a Card; drop its padding so an example can reach the edges. A splitter whose gutters
+  // stop short of the frame looks like a bug in the splitter.
+  .weave-card.ex-demo__card {
+    position: relative;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .weave-card.ex-log {
+    padding: 14px 16px;
+  }
+
+  /* ── code blocks ── */
+
+  // The tab strip and panels are the library's Tabs; this only frames the pair.
+  .weave-tabs.ex-code {
+    margin-block-start: 10px;
+    border: 1px solid var(--weave-color-line);
+    border-radius: var(--weave-shape-radius);
+    overflow: hidden;
+  }
+}

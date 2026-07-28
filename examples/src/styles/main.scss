@@ -3,11 +3,18 @@
 // The Weave theme is included so the extras can be seen resolving their `--weave-color-*` fallbacks
 // against a real theme — that is the state a consuming app is normally in, and the one worth showing.
 @use 'pkg:@weave-framework/ui' as weave;
+// Cross-component chrome (Sidenav width, Expansion headers, Card padding) — see the file for why
+// these cannot live in a component's own scoped stylesheet. `@use` must precede every rule, so it
+// sits with the import above rather than where its output belongs.
+@use 'chrome';
 
 @include weave.theme();
 // Structural CSS for the built-in components. Needed because the examples put real `@weave-framework/ui`
 // controls inside a `<Split>` — without it they render unstyled and the page proves nothing.
 @include weave.all-styles();
+
+// After all-styles(), so these win at equal specificity.
+@include chrome.chrome();
 
 *,
 *::before,
@@ -32,7 +39,7 @@ body {
   font-size: 14px;
   line-height: 1.55;
   color: var(--weave-color-ink);
-  background: var(--weave-color-canvas);
+  background: var(--weave-color-surface);
   -webkit-font-smoothing: antialiased;
 }
 

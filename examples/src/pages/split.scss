@@ -1,5 +1,6 @@
 .ex-page {
-  max-inline-size: 860px;
+  // No reading-column cap: a splitter example wants the width, and the docs site does the same.
+  inline-size: 100%;
 }
 
 .ex-page__head {

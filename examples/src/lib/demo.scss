@@ -14,14 +14,6 @@
   color: var(--weave-color-sub);
 }
 
-// The surface itself is a `<Card>`; this only removes its padding so the stage can reach the edges,
-// which is what makes a splitter's gutters land where they belong.
-.ex-demo__card {
-  position: relative;
-  padding: 0;
-  overflow: hidden;
-}
-
 .ex-demo__label {
   position: absolute;
   inset-block-start: 6px;

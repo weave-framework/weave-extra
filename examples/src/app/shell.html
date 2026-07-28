@@ -1,29 +1,30 @@
-<div class="ex-shell">
-  <aside class="ex-nav">
-    <header class="ex-nav__head">
-      <h1 class="ex-nav__title">Weave <em>Extra</em></h1>
-      <p class="ex-nav__sub">Live examples</p>
-    </header>
+<Toolbar sticky={{ true }} class="ex-topbar">
+  <Button variant="icon" label="Toggle navigation" class="ex-topbar__toggle" on:click={{ toggleNav }}>
+    <Icon name="menu" />
+  </Button>
 
-    @for (group of groups(); track group.name) {
-      <section class="ex-nav__group">
-        <h2 class="ex-nav__group-title">{{ group.name }}</h2>
-        <List
-          items={{ group.items }}
-          value={{ current() }}
-          onChange={{ go }}
-          label={{ group.name }}
-          class="ex-nav__list"
-        />
-      </section>
-    }
+  <a class="ex-brand" href="#">
+    <span class="ex-brand__name">Weave</span>
+    <Badge variant="tag" class="ex-brand__tag">extra</Badge>
+  </a>
 
-    <footer class="ex-nav__foot">
-      <a href="https://github.com/weave-framework/weave-extra">weave-framework/weave-extra</a>
-    </footer>
-  </aside>
+  <span class="weave-toolbar__spacer"></span>
 
-  <main class="ex-main">
+  <Button variant="icon" label="Toggle color theme" on:click={{ toggleTheme }}>
+    <Icon name={{ themeIcon() }} />
+  </Button>
+
+  <Button variant="icon" label="Open the repository on GitHub" on:click={{ openRepo }}>
+    <Icon name="git-branch" />
+  </Button>
+</Toolbar>
+
+<Sidenav class="ex-layout" api={{ setNavApi }}>
+  <nav slot="drawer" class="ex-sidebar" aria-label="Examples">
+    <Expansion class="ex-nav" panels={{ panels() }} defaultOpen={{ openIds() }} headingLevel={{ 2 }} />
+  </nav>
+
+  <main class="ex-content">
     @switch (current()) {
       @case ('split') { <SplitPage /> }
       @case ('inside') { <InsidePage /> }
@@ -31,4 +32,4 @@
       @default { <p class="ex-empty">Nothing selected.</p> }
     }
   </main>
-</div>
+</Sidenav>

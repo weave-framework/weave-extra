@@ -1,9 +1,11 @@
 /**
- * The examples shell — a sidebar of everything this package ships, and the selected page beside it.
+ * The examples shell — the same shape the Weave documentation site uses, and made of the same
+ * pieces: a sticky `<Toolbar>`, a `<Sidenav>` drawer whose groups are `<Expansion>` panels, and the
+ * selected page in the content column.
  *
- * The sidebar is a real `<List>` from the component library: it brings the listbox roles, roving
- * tabindex, typeahead and arrow-key navigation with it, none of which a hand-rolled `<ul>` of links
- * would have had. A site about extending `@weave-framework/ui` should be built out of it.
+ * A site about extending `@weave-framework/ui` that builds its own chrome argues against its own
+ * point, and leaves the library it depends on untested by the one app in the repo. So the chrome is
+ * the library: toolbar, buttons, icons, badge, sidenav, expansion.
  *
  * Selection rides `location.hash` rather than the router: an examples site needs links that survive
  * being pasted into a message, and that is the whole of what a router would be buying here. Adding an
@@ -11,55 +13,39 @@
  */
 
 import { onMount, signal, type Signal } from '@weave-framework/runtime';
-import List from '@weave-framework/ui/list';
+import Toolbar from '@weave-framework/ui/toolbar';
+import Button from '@weave-framework/ui/button';
+import Badge from '@weave-framework/ui/badge';
+import Icon from '@weave-framework/ui/icon';
+import Sidenav, { type SidenavApi } from '@weave-framework/ui/sidenav';
+import Expansion, { type ExpansionPanel } from '@weave-framework/ui/expansion';
 import SplitPage from '../pages/split.js';
 import InsidePage from '../pages/inside.js';
 import DockingPage from '../pages/docking.js';
+
+const REPO_URL = 'https://github.com/weave-framework/weave-extra';
 
 export interface PageEntry {
   id: string;
   title: string;
   group: string;
-  /** One line, shown under the title in the sidebar. */
-  blurb: string;
 }
 
 export const PAGES: PageEntry[] = [
-  {
-    id: 'split',
-    title: 'Split',
-    group: 'Components',
-    blurb: 'Resizable panes with draggable gutters',
-  },
-  {
-    id: 'inside',
-    title: 'Inside a Split',
-    group: 'Components',
-    blurb: 'Native HTML and Weave UI in the panes',
-  },
-  {
-    id: 'docking',
-    title: 'Docking',
-    group: 'Components',
-    blurb: 'Re-render a split from a layout config',
-  },
+  { id: 'split', title: 'Split', group: 'Components' },
+  { id: 'inside', title: 'Inside a Split', group: 'Components' },
+  { id: 'docking', title: 'Docking', group: 'Components' },
 ];
 
-interface NavItem {
-  value: string;
-  title: string;
-  meta: string;
-}
-
-interface PageGroup {
-  name: string;
-  items: NavItem[];
-}
-
 export interface ShellContext {
-  groups: () => PageGroup[];
   current: () => string;
-  go: (id: string) => void;
+  panels: () => ExpansionPanel[];
+  openIds: () => string[];
+  setNavApi: (api: SidenavApi) => void;
+  toggleNav: () => void;
+  toggleTheme: () => void;
+  themeIcon: () => string;
+  openRepo: () => void;
 }
 
 function pageFromHash(): string {
@@ -78,26 +64,50 @@ export function setup(): ShellContext {
     return () => window.removeEventListener('hashchange', onHashChange);
   });
 
+  /**
+   * Panel bodies are built as DOM rather than as a template, because `ExpansionContent` takes a Node.
+   * Plain anchors, like the docs site's sidebar: a hash link is the whole of the navigation here, and
+   * an anchor is what makes it middle-clickable and copyable.
+   */
+  const groupLinks = (group: string): Node => {
+    const box: HTMLElement = document.createElement('div');
+    box.className = 'ex-nav__links';
+    for (const page of PAGES.filter((entry) => entry.group === group)) {
+      const link: HTMLAnchorElement = document.createElement('a');
+      link.className = page.id === current() ? 'ex-nav__link ex-nav__link--active' : 'ex-nav__link';
+      link.href = `#${page.id}`;
+      link.textContent = page.title;
+      box.appendChild(link);
+    }
+    return box;
+  };
+
+  const groups = (): string[] => [...new Set(PAGES.map((page) => page.group))];
+
+  let nav: SidenavApi | null = null;
+
+  const theme: Signal<'light' | 'dark'> = signal<'light' | 'dark'>('light');
+
   return {
-    groups: (): PageGroup[] => {
-      const names: string[] = [...new Set(PAGES.map((page) => page.group))];
-      return names.map((name) => ({
-        name,
-        items: PAGES.filter((page) => page.group === name).map((page) => ({
-          value: page.id,
-          title: page.title,
-          meta: page.blurb,
-        })),
-      }));
-    },
     current,
-    // Route through the hash rather than setting the signal directly, so selecting a page and
-    // arriving at one by link are the same code path — and so the address bar never lies.
-    go: (id: string): void => {
-      location.hash = `#${id}`;
+    // Reading `current()` here is what re-renders the panel bodies with the new active link.
+    panels: (): ExpansionPanel[] =>
+      groups().map((group) => ({ id: group, header: group, body: () => groupLinks(group) })),
+    openIds: groups,
+    setNavApi: (api: SidenavApi): void => {
+      nav = api;
+    },
+    toggleNav: (): void => nav?.toggle(),
+    toggleTheme: (): void => {
+      theme.set((value) => (value === 'dark' ? 'light' : 'dark'));
+      document.documentElement.dataset.theme = theme();
+    },
+    themeIcon: (): string => (theme() === 'dark' ? 'sun' : 'moon'),
+    openRepo: (): void => {
+      window.open(REPO_URL, '_blank', 'noopener,noreferrer');
     },
   };
 }
 
-// Referenced by the template; listed here so the values are unmistakably used.
-export { List, SplitPage, InsidePage, DockingPage };
+// Capitalized tags in shell.html resolve to these imports.
+export { Toolbar, Button, Badge, Icon, Sidenav, Expansion, SplitPage, InsidePage, DockingPage };

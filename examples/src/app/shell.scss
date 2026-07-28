@@ -1,80 +1,64 @@
-.ex-shell {
-  display: grid;
-  grid-template-columns: 264px minmax(0, 1fr);
-  height: 100%;
+// Only what the component library does not already provide: the brand lockup, the sidebar links
+// inside the Expansion bodies, and the content column's rhythm. Toolbar, Sidenav, Expansion, Button,
+// Badge and Icon bring their own.
+
+.ex-topbar {
+  z-index: 20;
 }
 
-.ex-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 22px 14px;
-  overflow-y: auto;
-  border-inline-end: 1px solid var(--weave-color-line);
-  background: var(--weave-color-surface);
+.ex-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+  color: inherit;
 }
 
-.ex-nav__head {
-  padding-inline: 6px;
-}
-
-.ex-nav__title {
-  margin: 0;
-  font-size: 17px;
+.ex-brand__name {
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-.ex-nav__title em {
-  font-style: normal;
+.ex-nav__links {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ex-nav__link {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+  font-size: 13.5px;
+}
+
+.ex-nav__link:hover {
+  background: var(--weave-color-field);
+}
+
+.ex-nav__link--active {
   color: var(--weave-color-accent);
+  background: var(--weave-color-field);
+  font-weight: 500;
 }
 
-.ex-nav__sub {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: var(--weave-color-sub);
-}
-
-.ex-nav__group-title {
-  margin: 0 0 6px;
-  padding-inline: 6px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--weave-color-sub);
-}
-
-.ex-nav__foot {
-  margin-block-start: auto;
-  padding-inline: 6px;
-  font-size: 11.5px;
-  color: var(--weave-color-sub);
-}
-
-.ex-main {
-  overflow-y: auto;
-  // The pages inside set their own rhythm; this is only the reading column.
-  padding: 34px 38px 72px;
+// White, and the full width of what is left. A documentation column that stops halfway wastes the
+// half a wide example needs most.
+.ex-content {
+  display: block;
+  padding: 30px 40px 80px;
+  background: var(--weave-color-surface);
 }
 
 .ex-empty {
   color: var(--weave-color-sub);
 }
 
-@media (max-width: 860px) {
-  .ex-shell {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .ex-nav {
-    border-inline-end: 0;
-    border-block-end: 1px solid var(--weave-color-line);
-  }
-
-  .ex-main {
-    padding: 22px 18px 56px;
+@media (max-width: 900px) {
+  .ex-content {
+    padding: 20px 18px 60px;
   }
 }
