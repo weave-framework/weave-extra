@@ -150,6 +150,25 @@ $topbar-h: var(--weave-toolbar-height, 52px);
   width: 100%;
 }
 
+// <Split> is one of those: it paints no surface of its own, and its gutter is transparent BY DESIGN
+// so it takes the app surface a consumer sits it on. On the dotted demo backdrop that left the
+// gutters showing the speckle between white panes — three boxes floating on a pattern rather than one
+// panel with seams in it. Give the splitter the raised plane, and the gutter's hairline and grip
+// become the only drawn parts, which is what they are meant to be.
+.demo .weave-split {
+  background: var(--raised);
+  // `--field-line`, not the `--border` hairline. A divider may whisper; a thing you OPERATE is an
+  // affordance and WCAG asks 3:1 for its boundary. Measured on this backdrop the hairline came to
+  // 1.18:1 — the splitter's own frame was, literally, not there. This is 3.24:1.
+  border: 1px solid var(--field-line);
+  border-radius: 8px;
+  // The panes reach the frame's edge; without this they square off its rounded corners.
+  overflow: hidden;
+  // Same reasoning for the seam BETWEEN panes: at 1.25:1 on the white panel the gutter's hairline
+  // was carried entirely by its grip. Set through the component's own documented token.
+  --weave-split-line: var(--field-line);
+}
+
 /* ── <CodeBlock> copy control — a ghost <Button class="copy"> pinned to the corner ── */
 
 .code-block .copy.weave-button {
