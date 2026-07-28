@@ -1,0 +1,60 @@
+<article class="ex-page">
+  <header class="ex-page__head">
+    <h2 class="ex-page__title">Docking</h2>
+    <p class="ex-page__lead">
+      One configuration drives the whole layout — which edge the panel sits on, which axis the split
+      runs along, and whether the panel is there at all. Nothing in the markup is rewritten per dock
+      position, and the component needs no new API: the configuration feeds a keyed
+      <code>{{ '@for' }}</code>, so the panes really do reorder in the DOM instead of only being moved
+      by the grid. Tab order follows DOM order, so that distinction is the difference between a
+      separator a keyboard user can reach and one they cannot.
+    </p>
+  </header>
+
+  <div class="ex-dock">
+    @for (option of options; track option.value) {
+      <button class={{ buttonClass(option.value) }} on:click={{ () => setDock(option.value) }}>
+        {{ option.label }}
+      </button>
+    }
+  </div>
+
+  <Demo
+    title="One split, five configurations"
+    note="Drag the gutter, then dock the panel elsewhere — it keeps the share you gave it rather than inheriting whatever was on that side."
+    height="320px"
+  >
+    <Split
+      direction={{ layout().direction }}
+      sizes={{ sizes() }}
+      onSizesChange={{ onSizesChange }}
+      gutterLabel="Resize the docked panel"
+    >
+      @for (id of layout().panes; track id) {
+        <SplitPane min={{ minFor(id) }}>
+          @if (id === 'panel') {
+            <div class="ex-dock__panel">
+              <h4>Panel</h4>
+              <p>Docked {{ dock() }}. Its size travels with it.</p>
+              <label class="ex-field">
+                <span>A field, to check focus order</span>
+                <input type="text" value="panel field" />
+              </label>
+            </div>
+          } @else {
+            <div class="ex-dock__main">
+              <h4>Main</h4>
+              <p>Takes whatever is left.</p>
+              <label class="ex-field">
+                <span>Another field</span>
+                <input type="text" value="main field" />
+              </label>
+            </div>
+          }
+        </SplitPane>
+      }
+    </Split>
+  </Demo>
+
+  <p class="ex-readout">layout: <code>{{ summary() }}</code></p>
+</article>

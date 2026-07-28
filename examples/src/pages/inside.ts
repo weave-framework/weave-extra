@@ -101,14 +101,11 @@ export function setup(): InsidePageContext {
         ? 'pane content'
         : 'outside';
 
+    const type: string = target instanceof HTMLInputElement ? `[${target.type}]` : '';
+
     keys.set((list) =>
       [
-        {
-          id: nextId++,
-          key: event.key,
-          where,
-          target: target.tagName.toLowerCase() + (target.type ? `[${target.type}]` : ''),
-        },
+        { id: nextId++, key: event.key, where, target: target.tagName.toLowerCase() + type },
         ...list,
       ].slice(0, 12)
     );
@@ -130,7 +127,9 @@ export function setup(): InsidePageContext {
     },
     keys,
     onAreaKeydown,
-    clearKeys: (): void => keys.set([]),
+    clearKeys: (): void => {
+      keys.set([]);
+    },
     format: (sizes: SplitSize[]): string =>
       sizes.map((size) => (size === '*' ? '*' : `${Math.round(size)}%`)).join(' · '),
   };

@@ -9,6 +9,7 @@
 import { onMount, signal, type Signal } from '@weave-framework/runtime';
 import SplitPage from '../pages/split.js';
 import InsidePage from '../pages/inside.js';
+import DockingPage from '../pages/docking.js';
 
 export interface PageEntry {
   id: string;
@@ -30,6 +31,12 @@ export const PAGES: PageEntry[] = [
     title: 'Inside a Split',
     group: 'Components',
     blurb: 'Native HTML and Weave UI in the panes',
+  },
+  {
+    id: 'docking',
+    title: 'Docking',
+    group: 'Components',
+    blurb: 'Re-render a split from a layout config',
   },
 ];
 
@@ -53,7 +60,9 @@ export function setup(): ShellContext {
   const current: Signal<string> = signal<string>(pageFromHash());
 
   onMount(() => {
-    const onHashChange = (): void => current.set(pageFromHash());
+    const onHashChange = (): void => {
+      current.set(pageFromHash());
+    };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   });
@@ -70,4 +79,5 @@ export function setup(): ShellContext {
 }
 
 // Referenced by the template; listed here so the values are unmistakably used.
-export { SplitPage, InsidePage };
+export { SplitPage, InsidePage, DockingPage };
+

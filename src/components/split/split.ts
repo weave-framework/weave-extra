@@ -169,6 +169,16 @@ interface Registration {
 export function setup(props: SplitProps): SplitRenderContext {
   const host: Signal<Element | null> = signal<Element | null>(null);
   const registrations: Signal<Registration[]> = signal<Registration[]>([]);
+  /**
+   * Bumped whenever the panes are rearranged in the DOM.
+   *
+   * Pane order is read from document position, and a reorder — a keyed `@for` driven by a layout
+   * config, say — MOVES existing nodes rather than creating new ones. No signal changes, so nothing
+   * would recompute: the panes landed in their new places in the markup while still being assigned
+   * their old grid tracks, which put two of them in the same column and auto-placement pushed one
+   * onto a second row. The observer is what turns "the DOM moved" into something reactive.
+   */
+  const domVersion: Signal<number> = signal<number>(0);
   const internal: Signal<SplitSize[] | null> = signal<SplitSize[] | null>(props.defaultSizes ?? null);
   const draggingIndex: Signal<number> = signal<number>(-1);
   const ready: Signal<boolean> = signal<boolean>(false);
@@ -194,6 +204,7 @@ export function setup(props: SplitProps): SplitRenderContext {
    * registration would put a late-mounting pane last and silently shuffle every size after it.
    */
   const ordered = computed<Registration[]>(() => {
+    domVersion(); // re-sort whenever the panes are rearranged — see the observer below
     const list: Registration[] = registrations();
     const nodes: (Element | null)[] = list.map((r) => r.declaration.el());
     if (list.length < 2 || nodes.some((n) => n === null)) return list;
@@ -291,6 +302,20 @@ export function setup(props: SplitProps): SplitRenderContext {
     if (typeof ResizeObserver === 'undefined') return;
     const observer: ResizeObserver = new ResizeObserver(() => measure());
     observer.observe(el);
+    onCleanup(() => observer.disconnect());
+  });
+
+  /**
+   * Watch for panes being rearranged. `childList` without `subtree`, because the panes are the host's
+   * direct children and a move is reported as a removal plus an insertion — content changing deeper
+   * inside a pane is none of this component's business and would only cause pointless re-sorts.
+   */
+  effect(() => {
+    const el: Element | null = host();
+    if (!el) return;
+    if (typeof MutationObserver === 'undefined') return;
+    const observer: MutationObserver = new MutationObserver(() => domVersion.set((v) => v + 1));
+    observer.observe(el, { childList: true });
     onCleanup(() => observer.disconnect());
   });
 
