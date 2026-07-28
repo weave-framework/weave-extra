@@ -5,27 +5,6 @@
   margin-block-end: 18px;
 }
 
-.ex-dock__button {
-  padding: 5px 11px;
-  border: 1px solid var(--weave-color-line);
-  border-radius: var(--weave-shape-radius);
-  background: var(--weave-color-surface);
-  color: inherit;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.ex-dock__button:hover {
-  background: var(--weave-color-field);
-}
-
-.ex-dock__button--active {
-  border-color: var(--weave-color-accent);
-  color: var(--weave-color-surface);
-  background: var(--weave-color-accent);
-}
-
 .ex-dock__panel,
 .ex-dock__main {
   block-size: 100%;

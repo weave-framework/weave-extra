@@ -1,18 +1,5 @@
-<div class="ex-code">
-  @if (missing()) {
-    <p class="ex-code__missing">No snippet is marked for <code>{{ props.id }}</code>.</p>
-  } @else {
-    <div class="ex-code__bar">
-      @if (hasBoth()) {
-        <div class="ex-code__tabs">
-          <button class={{ tabClass('markup') }} on:click={{ () => setTab('markup') }}>template.html</button>
-          <button class={{ tabClass('script') }} on:click={{ () => setTab('script') }}>setup.ts</button>
-        </div>
-      } @else {
-        <span class="ex-code__name">{{ filename() }}</span>
-      }
-      <button class="ex-code__copy" on:click={{ copy }}>{{ copied() ? 'Copied' : 'Copy' }}</button>
-    </div>
-    <pre class="ex-code__body"><code>{{ body() }}</code></pre>
-  }
-</div>
+@if (missing()) {
+  <p class="ex-code__missing">No snippet is marked for <code>{{ props.id }}</code>.</p>
+} @else {
+  <Tabs class="ex-code" tabs={{ tabs() }} label="Source" />
+}

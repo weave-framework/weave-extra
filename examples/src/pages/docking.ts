@@ -18,6 +18,7 @@ import { computed, signal, type Signal } from '@weave-framework/runtime';
 import Split from '@weave-framework/extra/components/split';
 import SplitPane from '@weave-framework/extra/components/split-pane';
 import type { SplitChangeReason, SplitDirection, SplitSize } from '@weave-framework/extra/components/split';
+import Button from '@weave-framework/ui/button';
 import Demo from '../lib/demo.js';
 
 export type Dock = 'left' | 'right' | 'top' | 'bottom' | 'undocked';
@@ -43,7 +44,6 @@ export interface DockingPageContext {
   sizes: () => SplitSize[];
   onSizesChange: (sizes: SplitSize[], reason: SplitChangeReason) => void;
   setDock: (value: Dock) => void;
-  buttonClass: (value: Dock) => string;
   minFor: (id: string) => number;
   summary: () => string;
 }
@@ -100,8 +100,6 @@ export function setup(): DockingPageContext {
     setDock: (value: Dock): void => {
       dock.set(value);
     },
-    buttonClass: (value: Dock): string =>
-      dock() === value ? 'ex-dock__button ex-dock__button--active' : 'ex-dock__button',
     minFor: (id: string): number => (id === 'panel' ? 12 : 20),
     summary: (): string => {
       const { direction, panes } = layout();
@@ -110,4 +108,4 @@ export function setup(): DockingPageContext {
   };
 }
 
-export { Split, SplitPane, Demo };
+export { Split, SplitPane, Demo, Button };

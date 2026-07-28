@@ -13,9 +13,12 @@
 
   <div class="ex-dock">
     @for (option of options; track option.value) {
-      <button class={{ buttonClass(option.value) }} on:click={{ () => setDock(option.value) }}>
+      <Button
+        variant={{ dock() === option.value ? 'primary' : 'ghost' }}
+        on:click={{ () => setDock(option.value) }}
+      >
         {{ option.label }}
-      </button>
+      </Button>
     }
   </div>
 

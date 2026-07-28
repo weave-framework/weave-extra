@@ -74,7 +74,7 @@
       </SplitPane>
       <SplitPane>
         <div class="ex-fill ex-fill--alt">
-          <button class="ex-button" on:click={{ togglePanel }}>{{ panelLabel() }}</button>
+          <Button variant="ghost" on:click={{ togglePanel }}>{{ panelLabel() }}</Button>
         </div>
       </SplitPane>
     </Split>
@@ -115,10 +115,10 @@
     <!-- #endregion -->
   </Demo>
 
-  <div class="ex-log">
+  <Card class="ex-log">
     <div class="ex-log__head">
       <h4 class="ex-log__title">onSizesChange</h4>
-      <button class="ex-button" on:click={{ clearSaved }}>Clear stored sizes</button>
+      <Button variant="ghost" on:click={{ clearSaved }}>Clear stored sizes</Button>
     </div>
     @if (events().length === 0) {
       <p class="ex-log__empty">Drag or key the splitter above — every change reports why it happened.</p>
@@ -135,5 +135,5 @@
         }
       </ul>
     }
-  </div>
+  </Card>
 </article>

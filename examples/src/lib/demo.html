@@ -3,9 +3,12 @@
   @if (props.note) {
     <p class="ex-demo__note">{{ props.note }}</p>
   }
-  <div class="ex-demo__stage" style={{ stageStyle() }}>
-    <slot />
-  </div>
+  <Card class="ex-demo__card">
+    <span class="ex-demo__label">Live</span>
+    <div class="ex-demo__stage" style={{ stageStyle() }}>
+      <slot />
+    </div>
+  </Card>
   @if (props.snippet) {
     <Code id={{ props.snippet }} />
   }

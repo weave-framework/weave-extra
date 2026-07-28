@@ -1,0 +1,26 @@
+.ex-code-block {
+  position: relative;
+}
+
+.ex-code-block__copy {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  z-index: 1;
+}
+
+.ex-code-block__pre {
+  margin: 0;
+  padding: 14px 16px;
+  // Long lines scroll inside the block; the page itself must never scroll sideways.
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  tab-size: 2;
+  color: var(--weave-color-ink);
+}
+
+.ex-code-block__pre code {
+  white-space: pre;
+}

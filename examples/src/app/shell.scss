@@ -1,17 +1,21 @@
 .ex-shell {
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: 264px minmax(0, 1fr);
   height: 100%;
 }
 
 .ex-nav {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 22px 18px;
+  gap: 20px;
+  padding: 22px 14px;
   overflow-y: auto;
   border-inline-end: 1px solid var(--weave-color-line);
   background: var(--weave-color-surface);
+}
+
+.ex-nav__head {
+  padding-inline: 6px;
 }
 
 .ex-nav__title {
@@ -33,7 +37,8 @@
 }
 
 .ex-nav__group-title {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
+  padding-inline: 6px;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -41,48 +46,9 @@
   color: var(--weave-color-sub);
 }
 
-.ex-nav__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.ex-nav__link {
-  display: block;
-  padding: 7px 10px;
-  border-radius: var(--weave-shape-radius);
-  color: inherit;
-  text-decoration: none;
-}
-
-.ex-nav__link:hover {
-  background: var(--weave-color-field);
-}
-
-.ex-nav__link--active {
-  background: var(--weave-color-field);
-}
-
-.ex-nav__link-title {
-  display: block;
-  font-weight: 500;
-}
-
-.ex-nav__link--active .ex-nav__link-title {
-  color: var(--weave-color-accent);
-}
-
-.ex-nav__link-blurb {
-  display: block;
-  font-size: 11.5px;
-  color: var(--weave-color-sub);
-}
-
 .ex-nav__foot {
   margin-block-start: auto;
+  padding-inline: 6px;
   font-size: 11.5px;
   color: var(--weave-color-sub);
 }

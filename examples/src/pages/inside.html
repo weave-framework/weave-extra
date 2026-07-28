@@ -129,10 +129,10 @@ lines</textarea>
       </Split>
     </Demo>
 
-    <div class="ex-log">
+    <Card class="ex-log">
       <div class="ex-log__head">
         <h4 class="ex-log__title">keydown · splitter sizes {{ format(proofSizes()) }}</h4>
-        <button class="ex-button" on:click={{ clearKeys }}>Clear</button>
+        <Button variant="ghost" on:click={{ clearKeys }}>Clear</Button>
       </div>
       @if (keys().length === 0) {
         <p class="ex-log__empty">No watched keys yet. Only a key that landed on a gutter moves the splitter.</p>
@@ -149,6 +149,6 @@ lines</textarea>
           }
         </ul>
       }
-    </div>
+    </Card>
   </div>
 </article>

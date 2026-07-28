@@ -1,12 +1,17 @@
 /**
  * The examples shell — a sidebar of everything this package ships, and the selected page beside it.
  *
+ * The sidebar is a real `<List>` from the component library: it brings the listbox roles, roving
+ * tabindex, typeahead and arrow-key navigation with it, none of which a hand-rolled `<ul>` of links
+ * would have had. A site about extending `@weave-framework/ui` should be built out of it.
+ *
  * Selection rides `location.hash` rather than the router: an examples site needs links that survive
  * being pasted into a message, and that is the whole of what a router would be buying here. Adding an
  * extra means one entry in `PAGES` and one `@case`.
  */
 
 import { onMount, signal, type Signal } from '@weave-framework/runtime';
+import List from '@weave-framework/ui/list';
 import SplitPage from '../pages/split.js';
 import InsidePage from '../pages/inside.js';
 import DockingPage from '../pages/docking.js';
@@ -40,15 +45,21 @@ export const PAGES: PageEntry[] = [
   },
 ];
 
+interface NavItem {
+  value: string;
+  title: string;
+  meta: string;
+}
+
 interface PageGroup {
   name: string;
-  pages: PageEntry[];
+  items: NavItem[];
 }
 
 export interface ShellContext {
   groups: () => PageGroup[];
   current: () => string;
-  linkClass: (id: string) => string;
+  go: (id: string) => void;
 }
 
 function pageFromHash(): string {
@@ -70,14 +81,23 @@ export function setup(): ShellContext {
   return {
     groups: (): PageGroup[] => {
       const names: string[] = [...new Set(PAGES.map((page) => page.group))];
-      return names.map((name) => ({ name, pages: PAGES.filter((page) => page.group === name) }));
+      return names.map((name) => ({
+        name,
+        items: PAGES.filter((page) => page.group === name).map((page) => ({
+          value: page.id,
+          title: page.title,
+          meta: page.blurb,
+        })),
+      }));
     },
     current,
-    linkClass: (id: string): string =>
-      current() === id ? 'ex-nav__link ex-nav__link--active' : 'ex-nav__link',
+    // Route through the hash rather than setting the signal directly, so selecting a page and
+    // arriving at one by link are the same code path — and so the address bar never lies.
+    go: (id: string): void => {
+      location.hash = `#${id}`;
+    },
   };
 }
 
 // Referenced by the template; listed here so the values are unmistakably used.
-export { SplitPage, InsidePage, DockingPage };
-
+export { List, SplitPage, InsidePage, DockingPage };
