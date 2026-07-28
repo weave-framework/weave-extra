@@ -1,67 +1,68 @@
-<article class="ex-page">
-  <header class="ex-page__head">
-    <h2 class="ex-page__title">Split</h2>
-    <p class="ex-page__lead">
-      Resizable panes separated by draggable gutters, following the WAI-ARIA window splitter pattern.
-      Drag a gutter, or focus one with <kbd>Tab</kbd> and use the arrows, <kbd>Home</kbd>/<kbd>End</kbd>,
-      <kbd>Enter</kbd> to collapse, and <kbd>Escape</kbd> to abandon a drag.
-    </p>
-    <p class="ex-page__imports">
-      <code>@weave-framework/extra/components/split</code> ·
-      <code>@weave-framework/extra/components/split-pane</code>
-    </p>
-  </header>
+<article>
+  <h1>Split</h1>
+  <p class="lead">
+    Resizable panes separated by draggable gutters, following the WAI-ARIA window splitter pattern.
+  </p>
+  <p>
+    Drag a gutter, or focus one with <kbd>Tab</kbd> and use the arrows, <kbd>Home</kbd>/<kbd>End</kbd>,
+    <kbd>Enter</kbd> to collapse, and <kbd>Escape</kbd> to abandon a drag.
+  </p>
 
-  <Demo title="Horizontal" note="Three panes. The outer two hold a minimum of 15%; the middle one takes what is left."
-    snippet="split-horizontal"
-  >
+  <h2>Horizontal</h2>
+  <p>Three panes. The outer two hold a minimum of 15%; the middle one takes what is left.</p>
+  <Demo height="240px">
     <!-- #region split-horizontal -->
     <Split bind:sizes={{ basicSizes }}>
-      <SplitPane min={{ 15 }}><div class="ex-fill">left</div></SplitPane>
-      <SplitPane><div class="ex-fill ex-fill--alt">middle</div></SplitPane>
-      <SplitPane min={{ 15 }}><div class="ex-fill">right</div></SplitPane>
+      <SplitPane min={{ 15 }}><div class="pane">left</div></SplitPane>
+      <SplitPane><div class="pane pane--alt">middle</div></SplitPane>
+      <SplitPane min={{ 15 }}><div class="pane">right</div></SplitPane>
     </Split>
     <!-- #endregion -->
   </Demo>
-  <p class="ex-readout">sizes: <code>{{ format(basicSizes()) }}</code></p>
+  <CodeTabs id="split-horizontal" />
+  <p class="demo-note">sizes: <code>{{ format(basicSizes()) }}</code></p>
 
-  <Demo title="Vertical" note="Same component, stacked. Only the horizontal arrows flip under RTL, so a vertical split reads top-to-bottom either way."
-    snippet="split-vertical"
-  >
+  <h2>Vertical</h2>
+  <p>
+    Same component, stacked. Only the horizontal arrows flip under RTL, so a vertical split reads
+    top-to-bottom either way.
+  </p>
+  <Demo height="240px">
     <!-- #region split-vertical -->
     <Split direction="vertical" bind:sizes={{ verticalSizes }}>
-      <SplitPane min={{ 20 }}><div class="ex-fill">top</div></SplitPane>
-      <SplitPane min={{ 20 }}><div class="ex-fill ex-fill--alt">bottom</div></SplitPane>
+      <SplitPane min={{ 20 }}><div class="pane">top</div></SplitPane>
+      <SplitPane min={{ 20 }}><div class="pane pane--alt">bottom</div></SplitPane>
     </Split>
     <!-- #endregion -->
   </Demo>
+  <CodeTabs id="split-vertical" />
 
-  <Demo
-    title="Nested"
-    note="A vertical split inside a horizontal one — the usual editor layout. Each container owns its own sizes."
-    height="320px"
-  
-    snippet="split-nested"
-  >
+  <h2>Nested</h2>
+  <p>A vertical split inside a horizontal one — the usual editor layout. Each container owns its own sizes.</p>
+  <Demo height="320px">
     <!-- #region split-nested -->
     <Split bind:sizes={{ ideSizes }}>
-      <SplitPane min={{ 12 }} max={{ 40 }}><div class="ex-fill">explorer</div></SplitPane>
+      <SplitPane min={{ 12 }} max={{ 40 }}><div class="pane">explorer</div></SplitPane>
       <SplitPane>
         <Split direction="vertical" bind:sizes={{ ideRightSizes }}>
-          <SplitPane min={{ 25 }}><div class="ex-fill ex-fill--alt">editor</div></SplitPane>
-          <SplitPane min={{ 12 }}><div class="ex-fill">terminal</div></SplitPane>
+          <SplitPane min={{ 25 }}><div class="pane pane--alt">editor</div></SplitPane>
+          <SplitPane min={{ 12 }}><div class="pane">terminal</div></SplitPane>
         </Split>
       </SplitPane>
     </Split>
     <!-- #endregion -->
   </Demo>
+  <CodeTabs id="split-nested" />
 
-  <Demo
-    title="Collapsible"
-    note="Press Enter on the gutter, double-click it, or use the button. The pane remembers the size it had before collapsing."
-  
-    snippet="split-collapsible"
-  >
+  <h2>Collapsible</h2>
+  <p>
+    Press <kbd>Enter</kbd> on the gutter, double-click it, or use the button. The pane remembers the
+    size it had before collapsing.
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ togglePanel }}>{{ panelLabel() }}</Button>
+  </div>
+  <Demo height="240px">
     <!-- #region split-collapsible -->
     <Split bind:sizes={{ panelSizes }} gutterDblClickDuration={{ 250 }}>
       <SplitPane
@@ -70,38 +71,36 @@
         collapsed={{ panelCollapsed() }}
         onCollapsedChange={{ (value: boolean) => panelCollapsed.set(value) }}
       >
-        <div class="ex-fill">sidebar</div>
+        <div class="pane">sidebar</div>
       </SplitPane>
-      <SplitPane>
-        <div class="ex-fill ex-fill--alt">
-          <Button variant="ghost" on:click={{ togglePanel }}>{{ panelLabel() }}</Button>
-        </div>
-      </SplitPane>
+      <SplitPane><div class="pane pane--alt">content</div></SplitPane>
     </Split>
     <!-- #endregion -->
   </Demo>
+  <CodeTabs id="split-collapsible" />
 
-  <Demo
-    title="Bounds and locks"
-    note="The middle pane is locked at its size — a drag on either gutter cascades past it to the pane beyond."
-  
-    snippet="split-bounds"
-  >
+  <h2>Bounds and locks</h2>
+  <p>The middle pane is locked at its size — a drag on either gutter cascades past it to the pane beyond.</p>
+  <Demo height="240px">
     <!-- #region split-bounds -->
     <Split bind:sizes={{ boundsSizes }} restrictMove={{ false }}>
-      <SplitPane min={{ 10 }} max={{ 45 }}><div class="ex-fill">min 10 · max 45</div></SplitPane>
-      <SplitPane lock><div class="ex-fill ex-fill--locked">locked</div></SplitPane>
-      <SplitPane min={{ 10 }}><div class="ex-fill">min 10</div></SplitPane>
+      <SplitPane min={{ 10 }} max={{ 45 }}><div class="pane">min 10 · max 45</div></SplitPane>
+      <SplitPane lock><div class="pane pane--locked">locked</div></SplitPane>
+      <SplitPane min={{ 10 }}><div class="pane">min 10</div></SplitPane>
     </Split>
     <!-- #endregion -->
   </Demo>
+  <CodeTabs id="split-bounds" />
 
-  <Demo
-    title="Persistence"
-    note="Sizes load asynchronously on mount and are written back once per interaction — never per frame, and never echoing the load. Reload the page to see them restored."
-  
-    snippet="split-persistence"
-  >
+  <h2>Persistence</h2>
+  <p>
+    Sizes load asynchronously on mount and are written back once per interaction — never per frame,
+    and never echoing the load. Reload the page to see them restored.
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ clearSaved }}>Clear stored sizes</Button>
+  </div>
+  <Demo height="240px">
     <!-- #region split-persistence -->
     <Split
       bind:sizes={{ savedSizes }}
@@ -109,31 +108,29 @@
       onSizesChange={{ onSavedChange }}
       gutterLabel="Resize the saved panes"
     >
-      <SplitPane min={{ 15 }}><div class="ex-fill">saved left</div></SplitPane>
-      <SplitPane min={{ 15 }}><div class="ex-fill ex-fill--alt">saved right</div></SplitPane>
+      <SplitPane min={{ 15 }}><div class="pane">saved left</div></SplitPane>
+      <SplitPane min={{ 15 }}><div class="pane pane--alt">saved right</div></SplitPane>
     </Split>
     <!-- #endregion -->
   </Demo>
+  <CodeTabs id="split-persistence" />
 
-  <Card class="ex-log">
-    <div class="ex-log__head">
-      <h4 class="ex-log__title">onSizesChange</h4>
-      <Button variant="ghost" on:click={{ clearSaved }}>Clear stored sizes</Button>
-    </div>
-    @if (events().length === 0) {
-      <p class="ex-log__empty">Drag or key the splitter above — every change reports why it happened.</p>
-    } @else {
-      <ul class="ex-log__list">
+  @if (events().length === 0) {
+    <p class="demo-note">Drag or key the splitter above — every change reports why it happened.</p>
+  } @else {
+    <table class="log">
+      <thead>
+        <tr><th scope="col">reason</th><th scope="col">sizes</th><th scope="col">store</th></tr>
+      </thead>
+      <tbody>
         @for (entry of events(); track entry.id) {
-          <li class="ex-log__row">
-            <span class="ex-log__reason">{{ entry.reason }}</span>
-            <span class="ex-log__sizes">{{ entry.sizes }}</span>
-            <span class={{ entry.persisted ? 'ex-log__tag ex-log__tag--on' : 'ex-log__tag' }}>
-              {{ entry.persisted ? 'written' : 'skipped' }}
-            </span>
-          </li>
+          <tr>
+            <td>{{ entry.reason }}</td>
+            <td>{{ entry.sizes }}</td>
+            <td>{{ entry.persisted ? 'written' : 'skipped' }}</td>
+          </tr>
         }
-      </ul>
-    }
-  </Card>
+      </tbody>
+    </table>
+  }
 </article>

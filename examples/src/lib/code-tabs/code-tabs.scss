@@ -1,0 +1,10 @@
+// The frame, the tab bar and the panels are all the library's <Tabs> — styled globally in
+// styles/_code.scss, because those roots carry the Tabs component's scope rather than this one's.
+.code-missing {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--red);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--red);
+}

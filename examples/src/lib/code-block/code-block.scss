@@ -1,0 +1,27 @@
+// A code block is always the body of a <Tabs> panel, so it is frameless — the outer border and
+// radius come from `.code-group` in styles/_code.scss. Here it only holds the code area and anchors
+// the copy button.
+//
+// The copy control is a real ghost <Button class="copy">; because that root is rendered by the
+// Button component (its own style scope), the rules pinning it to the corner live globally in
+// styles/_chrome.scss.
+.code-block {
+  position: relative;
+  background: var(--code-bg);
+}
+
+.pre {
+  margin: 0;
+  padding: 16px;
+  padding-top: 18px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.pre code {
+  font-family: inherit;
+  white-space: pre;
+}

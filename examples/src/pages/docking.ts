@@ -19,7 +19,8 @@ import Split from '@weave-framework/extra/components/split';
 import SplitPane from '@weave-framework/extra/components/split-pane';
 import type { SplitChangeReason, SplitDirection, SplitSize } from '@weave-framework/extra/components/split';
 import Button from '@weave-framework/ui/button';
-import Demo from '../lib/demo.js';
+import Demo from '../lib/demo/demo.js';
+import CodeTabs from '../lib/code-tabs/code-tabs.js';
 
 export type Dock = 'left' | 'right' | 'top' | 'bottom' | 'undocked';
 
@@ -108,4 +109,4 @@ export function setup(): DockingPageContext {
   };
 }
 
-export { Split, SplitPane, Demo, Button };
+export { Split, SplitPane, Demo, CodeTabs, Button };

@@ -1,0 +1,46 @@
+// Load the real @weave-framework/ui component styles and bind their global tokens to this site's
+// own variables, so every component shares the palette and flips with [data-theme] automatically.
+//
+// Ported from the Weave documentation site's `_weave-ui.scss`, including the per-component
+// overrides — each of those exists because a token doing two jobs left something invisible, and
+// every one of those reasons applies here too.
+@use 'pkg:@weave-framework/ui' as weave;
+
+@include weave.all-styles();
+
+@include weave.theme(
+  (
+    color: (
+      canvas: var(--bg),
+      surface: var(--surface),
+      ink: var(--fg),
+      sub: var(--muted),
+      line: var(--border),
+      field: var(--bg-soft),
+      accent: var(--accent),
+      paid: var(--green),
+      error: var(--red),
+      neutral: var(--muted),
+    ),
+  )
+);
+
+// Card and Toolbar are raised planes, not recessed panels: bound to `--surface` they sink into the
+// section they sit on.
+@include weave.card-overrides((background: var(--raised)));
+@include weave.toolbar-overrides((background: var(--raised)));
+// Every floating panel — a select dropdown, a menu, a dialog, a tooltip — is a raised plane too.
+@include weave.overlay-overrides((surface: var(--raised)));
+
+// `color.line` does two jobs. A DIVIDER wants a hairline; a CONTROL'S BOUNDARY is an affordance and
+// needs 3:1. Dividers keep `--border`; anything you operate gets `--field-line`.
+@include weave.input-overrides((border: var(--field-line), background: var(--raised)));
+@include weave.select-overrides((border: var(--field-line), background: var(--raised)));
+@include weave.checkbox-overrides((border: var(--field-line)));
+@include weave.radio-overrides((border: var(--field-line)));
+@include weave.chips-overrides((border: var(--field-line)));
+@include weave.button-toggle-overrides((border: var(--field-line)));
+@include weave.slide-toggle-overrides((border: var(--field-line)));
+@include weave.table-overrides((surface: var(--raised)));
+// The drawer sinks into the page for the same reason Card did.
+@include weave.sidenav-overrides((drawer-background: var(--raised)));

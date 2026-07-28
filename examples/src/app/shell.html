@@ -1,11 +1,11 @@
-<Toolbar sticky={{ true }} class="ex-topbar">
-  <Button variant="icon" label="Toggle navigation" class="ex-topbar__toggle" on:click={{ toggleNav }}>
+<Toolbar sticky={{ true }} class="topbar">
+  <Button variant="icon" label="Toggle navigation" on:click={{ toggleNav }}>
     <Icon name="menu" />
   </Button>
 
-  <a class="ex-brand" href="#">
-    <span class="ex-brand__name">Weave</span>
-    <Badge variant="tag" class="ex-brand__tag">extra</Badge>
+  <a class="brand" href="#">
+    <span>Weave</span>
+    <Badge variant="tag">extra</Badge>
   </a>
 
   <span class="weave-toolbar__spacer"></span>
@@ -19,17 +19,17 @@
   </Button>
 </Toolbar>
 
-<Sidenav class="ex-layout" api={{ setNavApi }}>
-  <nav slot="drawer" class="ex-sidebar" aria-label="Examples">
-    <Expansion class="ex-nav" panels={{ panels() }} defaultOpen={{ openIds() }} headingLevel={{ 2 }} />
+<Sidenav class="layout" api={{ setNavApi }}>
+  <nav slot="drawer" class="sidebar" aria-label="Examples">
+    <Expansion class="sidebar-nav" panels={{ panels() }} defaultOpen={{ openIds() }} headingLevel={{ 2 }} />
   </nav>
 
-  <main class="ex-content">
+  <main class="content">
     @switch (current()) {
       @case ('split') { <SplitPage /> }
       @case ('inside') { <InsidePage /> }
       @case ('docking') { <DockingPage /> }
-      @default { <p class="ex-empty">Nothing selected.</p> }
+      @default { <p>Nothing selected.</p> }
     }
   </main>
 </Sidenav>

@@ -1,0 +1,35 @@
+// The frame is a real <Card class="demo"> — because that root is rendered by the Card component
+// (its own style scope), the card-level rules live globally in styles/_chrome.scss. Only the parts
+// this component itself renders are here.
+.demo-label {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.demo-stage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  min-height: 56px;
+  // A demo shows COMPONENTS, which live on the library's 13px scale, but it inherits the 16px prose
+  // scale of the page around it.
+  font-size: 13px;
+}
+
+// A stage with a declared height holds a component that FILLS its container — a splitter with no
+// height collapses to nothing. Those stages lay their child out as a block rather than as one more
+// loose control in the default row. This rule lives HERE, not in the global chrome sheet: the stage
+// is the element this component renders, so its own scoped rule is the one that wins.
+.demo-stage--sized {
+  display: block;
+}
+
+.demo-stage--sized > * {
+  block-size: 100%;
+}

@@ -1,60 +1,11 @@
-// Global entry stylesheet for the examples site: reset, theme vars, page chrome.
+// Entry stylesheet, in the docs site's own order: tokens first, then the reset and prose, then the
+// component library bound to those tokens, then the code frame, then the app chrome.
 //
-// The Weave theme is included so the extras can be seen resolving their `--weave-color-*` fallbacks
-// against a real theme — that is the state a consuming app is normally in, and the one worth showing.
-@use 'pkg:@weave-framework/ui' as weave;
-// Cross-component chrome (Sidenav width, Expansion headers, Card padding) — see the file for why
-// these cannot live in a component's own scoped stylesheet. `@use` must precede every rule, so it
-// sits with the import above rather than where its output belongs.
+// Order matters and is not incidental. `_weave-ui.scss` emits the library's structural CSS, and
+// `_chrome.scss` overrides parts of it at equal specificity — so chrome has to come after. An
+// earlier arrangement put the chrome first and every override in it lost silently.
+@use 'tokens';
+@use 'base';
+@use 'weave-ui';
+@use 'code';
 @use 'chrome';
-
-@include weave.theme();
-// Structural CSS for the built-in components. Needed because the examples put real `@weave-framework/ui`
-// controls inside a `<Split>` — without it they render unstyled and the page proves nothing.
-@include weave.all-styles();
-
-// After all-styles(), so these win at equal specificity.
-@include chrome.chrome();
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html,
-body {
-  height: 100%;
-}
-
-body {
-  margin: 0;
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
-  font-size: 14px;
-  line-height: 1.55;
-  color: var(--weave-color-ink);
-  background: var(--weave-color-surface);
-  -webkit-font-smoothing: antialiased;
-}
-
-#app {
-  height: 100%;
-}
-
-code {
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 0.9em;
-  padding: 0.1em 0.35em;
-  border-radius: 3px;
-  background: var(--weave-color-field);
-}
-
-a {
-  color: var(--weave-color-accent);
-}

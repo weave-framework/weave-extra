@@ -1,161 +1,52 @@
-.ex-page {
-  // No reading-column cap: a splitter example wants the width, and the docs site does the same.
-  inline-size: 100%;
-}
-
-.ex-page__head {
-  margin-block-end: 28px;
-}
-
-.ex-page__title {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.015em;
-}
-
-.ex-page__lead {
-  margin: 8px 0 0;
-  max-inline-size: 62ch;
-  color: var(--weave-color-sub);
-}
-
-.ex-page__imports {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: var(--weave-color-sub);
-}
-
-kbd {
-  padding: 1px 5px;
-  border: 1px solid var(--weave-color-line);
-  border-radius: 3px;
-  background: var(--weave-color-field);
-  font-family: inherit;
-  font-size: 0.85em;
-}
-
 // Pane contents. Deliberately plain: the point of every stage is the gutter between the boxes, not
 // the boxes.
-.ex-fill {
+.pane {
   display: flex;
   align-items: center;
   justify-content: center;
   block-size: 100%;
   padding: 10px;
   font-size: 12px;
-  color: var(--weave-color-sub);
-  background: var(--weave-color-surface);
+  color: var(--muted);
+  background: var(--raised);
 }
 
-.ex-fill--alt {
-  background: var(--weave-color-canvas);
+.pane--alt {
+  background: var(--bg-soft);
 }
 
-.ex-fill--locked {
+.pane--locked {
   background: repeating-linear-gradient(
     45deg,
-    var(--weave-color-canvas),
-    var(--weave-color-canvas) 6px,
-    var(--weave-color-field) 6px,
-    var(--weave-color-field) 12px
+    var(--bg-soft),
+    var(--bg-soft) 6px,
+    var(--surface) 6px,
+    var(--surface) 12px
   );
 }
 
-.ex-readout {
-  margin: -24px 0 34px;
+.log {
+  inline-size: 100%;
+  margin: 16px 0;
+  border-collapse: collapse;
+  font-family: var(--mono);
   font-size: 12px;
-  color: var(--weave-color-sub);
 }
 
-.ex-button {
-  padding: 5px 11px;
-  border: 1px solid var(--weave-color-line);
-  border-radius: var(--weave-shape-radius);
-  background: var(--weave-color-surface);
-  color: inherit;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
+.log th,
+.log td {
+  padding: 5px 10px;
+  text-align: start;
+  border-block-end: 1px solid var(--border);
 }
 
-.ex-button:hover {
-  background: var(--weave-color-field);
-}
-
-.ex-log {
-  margin-block-start: -10px;
-  padding: 14px 16px;
-  border: 1px solid var(--weave-color-line);
-  border-radius: var(--weave-shape-radius);
-  background: var(--weave-color-surface);
-}
-
-.ex-log__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-block-end: 10px;
-}
-
-.ex-log__title {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--weave-color-sub);
-}
-
-.ex-log__empty {
-  margin: 0;
-  font-size: 12.5px;
-  color: var(--weave-color-sub);
-}
-
-.ex-log__list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  // Long enough to show a burst of drag events, short enough not to push the page around.
-  max-block-size: 236px;
-  overflow-y: auto;
-}
-
-.ex-log__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 12px;
-  align-items: baseline;
-  padding: 4px 0;
-  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 11.5px;
-  border-block-end: 1px solid var(--weave-color-line);
-}
-
-.ex-log__row:last-child {
-  border-block-end: 0;
-}
-
-.ex-log__sizes {
-  color: var(--weave-color-sub);
-}
-
-.ex-log__tag {
-  padding: 1px 6px;
-  border-radius: 999px;
+.log th {
   font-size: 10px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: var(--weave-color-sub);
-  background: var(--weave-color-field);
+  color: var(--muted);
 }
 
-.ex-log__tag--on {
-  color: var(--weave-color-surface);
-  background: var(--weave-color-accent);
+.log td {
+  color: var(--fg-soft);
 }

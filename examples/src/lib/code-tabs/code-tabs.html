@@ -1,0 +1,5 @@
+@if (missing()) {
+  <p class="code-missing">No snippet is marked for <code>{{ props.id }}</code>.</p>
+} @else {
+  <Tabs class="code-group" tabs={{ weaveTabs() }} label="Source" />
+}

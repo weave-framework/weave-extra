@@ -1,0 +1,67 @@
+/* Code group — every code sample is a Weave-UI <Tabs class="code-group">. The Tabs supplies the
+   frame and the tab bar (filename); the <CodeBlock> body inside each panel is frameless.
+
+   Global, not scoped: these roots are rendered by the Tabs component, so a rule in a component's own
+   stylesheet matches nothing — silently. Ported from the docs site's `_code.scss`. */
+.code-group.weave-tabs {
+  margin: 16px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--code-bg);
+}
+
+.code-group .weave-tabs__list {
+  padding: 0 6px;
+  border-bottom-color: var(--border);
+  // A faint header band over the code background, so the tab bar reads as a header.
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+}
+
+.code-group .weave-tabs__panel {
+  padding: 0; // the CodeBlock/.pre owns the padding
+}
+
+/* Syntax-highlight token classes. These spans are created in JS by the highlighter (no component
+   scope attribute), so the classes are global. */
+
+.tok-comment {
+  color: var(--tok-comment);
+  font-style: italic;
+}
+
+.tok-string {
+  color: var(--tok-string);
+}
+
+.tok-keyword {
+  color: var(--tok-keyword);
+}
+
+.tok-number {
+  color: var(--tok-number);
+}
+
+.tok-func {
+  color: var(--tok-func);
+}
+
+.tok-property {
+  color: var(--tok-property);
+}
+
+.tok-tag {
+  color: var(--tok-tag);
+}
+
+.tok-attr {
+  color: var(--tok-attr);
+}
+
+.tok-interp {
+  color: var(--tok-interp);
+}
+
+.tok-punct {
+  color: var(--tok-punct);
+}

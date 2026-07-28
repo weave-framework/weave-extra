@@ -1,17 +1,23 @@
-<article class="ex-page">
-  <header class="ex-page__head">
-    <h2 class="ex-page__title">Docking</h2>
-    <p class="ex-page__lead">
-      One configuration drives the whole layout — which edge the panel sits on, which axis the split
-      runs along, and whether the panel is there at all. Nothing in the markup is rewritten per dock
-      position, and the component needs no new API: the configuration feeds a keyed
-      <code>{{ '@for' }}</code>, so the panes really do reorder in the DOM instead of only being moved
-      by the grid. Tab order follows DOM order, so that distinction is the difference between a
-      separator a keyboard user can reach and one they cannot.
-    </p>
-  </header>
+<article>
+  <h1>Docking</h1>
+  <p class="lead">
+    One configuration drives the whole layout — which edge the panel sits on, which axis the split
+    runs along, and whether the panel is there at all.
+  </p>
 
-  <div class="ex-dock">
+  <h2>One split, five configurations</h2>
+  <p>
+    Nothing in the markup is rewritten per dock position, and the component needs no new API: the
+    configuration feeds a keyed <code>{{ '@for' }}</code>, so the panes really do reorder in the DOM
+    instead of only being moved by the grid. Tab order follows DOM order, so that distinction is the
+    difference between a separator a keyboard user can reach and one they cannot.
+  </p>
+  <p>
+    Drag the gutter, then dock the panel elsewhere — it keeps the share you gave it rather than
+    inheriting whatever was on that side.
+  </p>
+
+  <div class="demo-controls">
     @for (option of options; track option.value) {
       <Button
         variant={{ dock() === option.value ? 'primary' : 'ghost' }}
@@ -22,12 +28,7 @@
     }
   </div>
 
-  <Demo
-    title="One split, five configurations"
-    note="Drag the gutter, then dock the panel elsewhere — it keeps the share you gave it rather than inheriting whatever was on that side."
-    height="320px"
-    snippet="docking"
-  >
+  <Demo height="320px">
     <!-- #region docking -->
     <Split
       direction={{ layout().direction }}
@@ -38,22 +39,16 @@
       @for (id of layout().panes; track id) {
         <SplitPane min={{ minFor(id) }}>
           @if (id === 'panel') {
-            <div class="ex-dock__panel">
-              <h4>Panel</h4>
-              <p>Docked {{ dock() }}. Its size travels with it.</p>
-              <label class="ex-field">
-                <span>A field, to check focus order</span>
-                <input type="text" value="panel field" />
-              </label>
+            <div class="pane pane--panel">
+              <strong>Panel</strong>
+              <span class="demo-note">Docked {{ dock() }}. Its size travels with it.</span>
+              <input type="text" value="panel field" />
             </div>
           } @else {
-            <div class="ex-dock__main">
-              <h4>Main</h4>
-              <p>Takes whatever is left.</p>
-              <label class="ex-field">
-                <span>Another field</span>
-                <input type="text" value="main field" />
-              </label>
+            <div class="pane">
+              <strong>Main</strong>
+              <span class="demo-note">Takes whatever is left.</span>
+              <input type="text" value="main field" />
             </div>
           }
         </SplitPane>
@@ -62,5 +57,7 @@
     <!-- #endregion -->
   </Demo>
 
-  <p class="ex-readout">layout: <code>{{ summary() }}</code></p>
+  <CodeTabs id="docking" />
+
+  <p class="demo-note">layout: <code>{{ summary() }}</code></p>
 </article>

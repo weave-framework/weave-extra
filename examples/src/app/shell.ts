@@ -71,10 +71,10 @@ export function setup(): ShellContext {
    */
   const groupLinks = (group: string): Node => {
     const box: HTMLElement = document.createElement('div');
-    box.className = 'ex-nav__links';
+    box.className = 'nav-group-links';
     for (const page of PAGES.filter((entry) => entry.group === group)) {
       const link: HTMLAnchorElement = document.createElement('a');
-      link.className = page.id === current() ? 'ex-nav__link ex-nav__link--active' : 'ex-nav__link';
+      link.className = page.id === current() ? 'nav-link active' : 'nav-link';
       link.href = `#${page.id}`;
       link.textContent = page.title;
       box.appendChild(link);

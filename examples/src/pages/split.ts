@@ -11,8 +11,8 @@ import Split from '@weave-framework/extra/components/split';
 import SplitPane from '@weave-framework/extra/components/split-pane';
 import type { SplitChangeReason, SplitSize } from '@weave-framework/extra/components/split';
 import Button from '@weave-framework/ui/button';
-import Card from '@weave-framework/ui/card';
-import Demo from '../lib/demo.js';
+import Demo from '../lib/demo/demo.js';
+import CodeTabs from '../lib/code-tabs/code-tabs.js';
 
 const STORAGE_KEY = 'weave-extra:split-example';
 
@@ -128,4 +128,4 @@ export function setup(): SplitPageContext {
   };
 }
 
-export { Split, SplitPane, Demo, Button, Card };
+export { Split, SplitPane, Demo, CodeTabs, Button };

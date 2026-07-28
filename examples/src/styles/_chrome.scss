@@ -1,82 +1,187 @@
-// Cross-component chrome — GLOBAL on purpose.
+// Site chrome — the app frame built from @weave-framework/ui (<Toolbar> + <Sidenav>).
 //
-// A component's own stylesheet is scoped to the elements that component renders. Every rule here
-// targets an element rendered by `@weave-framework/ui` — the Sidenav drawer, an Expansion header, a
-// Card's box — so a scoped rule would silently never match. That is exactly what happened first:
-// the drawer kept its default width and the group headers kept their default casing, with nothing
-// reporting a problem, because a selector that matches nothing is not an error.
+// These roots are rendered by the child UI components, so they carry the component's own style
+// scope, not the shell's — hence global selectors here. A rule for `.weave-expansion__header` in a
+// component stylesheet matches nothing, and a selector that matches nothing is not an error, which
+// is how three passes of this file looked correct and did nothing.
 //
-// The Weave documentation site keeps the same kind of rules in its own global chrome sheet.
-//
-// Emitted through a mixin rather than at `@use` time on purpose: `@use` must precede every rule,
-// which put these BEFORE `weave.all-styles()` in the output, where the library's own rules then
-// overrode every one of them at equal specificity. The drawer kept its default width and the group
-// headers their default casing, with nothing reporting a problem.
+// Ported from the Weave documentation site's `_chrome.scss`.
 
-$topbar-height: 52px;
-$sidebar-width: 248px;
+$sidebar-w: 256px;
+$topbar-h: var(--weave-toolbar-height, 52px);
 
-@mixin chrome() {
-  /* ── layout shell ── */
+/* ── Top bar: <Toolbar class="topbar"> ── */
 
-  .weave-sidenav.ex-layout {
-    // The drawer's width is the Sidenav's token, not a width on the element inside it. Setting the
-    // inner element instead left it wider than the track the layout reserved, and the content pane
-    // started underneath the sidebar.
-    --weave-sidenav-width: #{$sidebar-width};
-    block-size: calc(100vh - #{$topbar-height});
+.weave-toolbar.topbar {
+  gap: 14px;
+  padding: 0 20px;
+  z-index: 20;
+  --weave-icon-size: 24px;
+  // Translucent, blurred bar over the page (two classes beat the component's single-class bg).
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg);
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+/* ── Layout: <Sidenav class="layout"> ── */
+
+.weave-sidenav.layout {
+  --weave-sidenav-width: #{$sidebar-w};
+  height: calc(100vh - #{$topbar-h});
+}
+
+.weave-sidenav.layout > .weave-sidenav__content {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weave-sidenav.layout > .weave-sidenav__content {
+    scroll-behavior: auto;
   }
+}
 
-  /* ── sidebar accordion ── */
+// Target the drawer ELEMENT, not the token: the token inherits, and a Sidenav demo living inside
+// this layout would inherit the transparency too.
+.weave-sidenav.layout > .weave-sidenav__drawer {
+  background: transparent;
+}
 
-  // Strip the boxed accordion look: each group header reads as an uppercase section label with the
-  // library's own open/close marker, and its links fill the region below.
-  .ex-nav.weave-expansion {
-    border: 0;
-    border-radius: 0;
-    overflow: visible;
+.sidebar {
+  padding: 16px 12px;
+}
+
+/* ── Sidebar accordion: <Expansion class="sidebar-nav"> ── */
+
+.sidebar-nav.weave-expansion {
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  --weave-expansion-header-open-background: color-mix(in srgb, var(--fg) 6%, transparent);
+  --weave-expansion-header-hover-background: var(--surface);
+  --weave-expansion-marker: var(--muted);
+}
+
+.sidebar-nav .weave-expansion__panel + .weave-expansion__panel {
+  border-top: 0;
+}
+
+.sidebar-nav .weave-expansion__header {
+  min-height: 0;
+  padding: 8px 10px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-radius: 7px;
+}
+
+.sidebar-nav .weave-expansion__content {
+  padding: 0 0 6px;
+}
+
+// The links are built as DOM inside the Expansion's panel body, so they carry no scope at all.
+.nav-group-links {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-link {
+  display: block;
+  padding: 6px 10px;
+  border-radius: 7px;
+  color: var(--fg-soft);
+  font-size: 14px;
+}
+
+.nav-link:hover {
+  color: var(--fg);
+  background: var(--surface);
+  text-decoration: none;
+}
+
+.nav-link.active {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-weight: 600;
+}
+
+/* ── Content column ── */
+
+.content {
+  padding: 36px 48px 96px;
+}
+
+@media (max-width: 900px) {
+  .content {
+    padding: 28px 22px 80px;
   }
+}
 
-  .ex-nav .weave-expansion__panel + .weave-expansion__panel {
-    border-block-start: 0;
-  }
+/* ── <Demo> frame — a live stage on a dotted backdrop ── */
 
-  .ex-nav .weave-expansion__header {
-    min-height: 0;
-    padding: 8px 10px 4px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--weave-color-sub);
-    border-radius: 6px;
-  }
+.demo.weave-card {
+  position: relative;
+  margin: 16px 0;
+  padding: 28px 20px 22px;
+  background:
+    radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0) 0 0 / 18px 18px,
+    var(--bg-soft);
+}
 
-  .ex-nav .weave-expansion__content {
-    padding: 0 0 6px;
-  }
+// Transparent-by-design components (tabs, list, tree…) have nothing to anchor them on the dotted
+// backdrop, and as flex items they shrink to their content instead of filling the stage.
+.demo .weave-tabs,
+.demo .weave-list,
+.demo .weave-table,
+.demo .weave-tree {
+  width: 100%;
+}
 
-  /* ── demo surfaces ── */
+/* ── <CodeBlock> copy control — a ghost <Button class="copy"> pinned to the corner ── */
 
-  // The stage is a Card; drop its padding so an example can reach the edges. A splitter whose gutters
-  // stop short of the frame looks like a bug in the splitter.
-  .weave-card.ex-demo__card {
-    position: relative;
-    padding: 0;
-    overflow: hidden;
-  }
+.code-block .copy.weave-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  min-height: 0;
+  padding: 3px 9px;
+  font-size: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
 
-  .weave-card.ex-log {
-    padding: 14px 16px;
-  }
+.code-block .copy.weave-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
-  /* ── code blocks ── */
+/* ── Demo controls that belong to the prose, not to the card ── */
 
-  // The tab strip and panels are the library's Tabs; this only frames the pair.
-  .weave-tabs.ex-code {
-    margin-block-start: 10px;
-    border: 1px solid var(--weave-color-line);
-    border-radius: var(--weave-shape-radius);
-    overflow: hidden;
-  }
+// A row of controls that drives the example below it. Sits in the text flow so it reads as part of
+// the explanation rather than as a detached widget.
+.demo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 16px 0 0;
+}
+
+.demo-note {
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--muted);
 }

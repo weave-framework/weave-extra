@@ -18,8 +18,8 @@ import Button from '@weave-framework/ui/button';
 import Input from '@weave-framework/ui/input';
 import Checkbox from '@weave-framework/ui/checkbox';
 import Select, { type SelectValue } from '@weave-framework/ui/select';
-import Card from '@weave-framework/ui/card';
-import Demo from '../lib/demo.js';
+import Demo from '../lib/demo/demo.js';
+import CodeTabs from '../lib/code-tabs/code-tabs.js';
 
 interface Option {
   value: string;
@@ -136,4 +136,4 @@ export function setup(): InsidePageContext {
   };
 }
 
-export { Split, SplitPane, Demo, Button, Input, Checkbox, Select, Card };
+export { Split, SplitPane, Demo, CodeTabs, Button, Input, Checkbox, Select };
