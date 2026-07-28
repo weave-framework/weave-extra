@@ -1,0 +1,23 @@
+.bench-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  --weave-icon-size: 14px;
+}
+
+.bench-status--ok {
+  color: var(--ok, #197b3f);
+}
+
+.bench-status--warn {
+  color: var(--warn, #8a5a00);
+}
+
+.bench-status--fail {
+  color: var(--danger, #b3261e);
+}
+
+.bench-status__label {
+  font-size: 12px;
+}

@@ -1,0 +1,9 @@
+// The grid gets a raised plane for the same reason the splitter does: <Table> paints no surface of
+// its own, and the measurement is about the grid, not about the page behind it.
+.bench-stage {
+  margin: 16px 0;
+  background: var(--raised);
+  border: 1px solid var(--field-line);
+  border-radius: 8px;
+  overflow: hidden;
+}

@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "examples"],
       "port": 8180
+    },
+    {
+      "name": "examples-dist",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "http-server", "examples/dist", "-p", "8181", "-c-1", "--silent"],
+      "port": 8181
     }
   ]
 }

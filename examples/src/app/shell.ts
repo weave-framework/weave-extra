@@ -22,6 +22,7 @@ import Expansion, { type ExpansionPanel } from '@weave-framework/ui/expansion';
 import SplitPage from '../pages/split.js';
 import InsidePage from '../pages/inside.js';
 import DockingPage from '../pages/docking.js';
+import BenchPage from '../pages/bench.js';
 
 const REPO_URL = 'https://github.com/weave-framework/weave-extra';
 
@@ -35,6 +36,7 @@ export const PAGES: PageEntry[] = [
   { id: 'split', title: 'Split', group: 'Components' },
   { id: 'inside', title: 'Inside a Split', group: 'Components' },
   { id: 'docking', title: 'Docking', group: 'Components' },
+  { id: 'bench', title: 'Rendering cost', group: 'Measurements' },
 ];
 
 export interface ShellContext {
@@ -110,4 +112,4 @@ export function setup(): ShellContext {
 }
 
 // Capitalized tags in shell.html resolve to these imports.
-export { Toolbar, Button, Badge, Icon, Sidenav, Expansion, SplitPage, InsidePage, DockingPage };
+export { Toolbar, Button, Badge, Icon, Sidenav, Expansion, SplitPage, InsidePage, DockingPage, BenchPage };

@@ -1,0 +1,72 @@
+<article>
+  <h1>Rendering cost</h1>
+  <p class="lead">
+    What a production-shaped grid actually costs: mostly text, a few dates and enums, component
+    cells, and an action column — measured, not estimated.
+  </p>
+  <p>
+    Outside a batch Weave flushes synchronously, so <code>rows.set(…)</code> returns with the DOM
+    already built. <strong>Build</strong> is that call. <strong>Paint</strong> is the frame the
+    browser needs afterwards, taken with the double-<code>requestAnimationFrame</code> idiom.
+  </p>
+
+  <h2>Size</h2>
+  <div class="demo-controls">
+    @for (n of rowChoices; track n) {
+      <Button variant={{ rowVariant(n) }} on:click={{ () => setRows(n) }}>{{ n }} rows</Button>
+    }
+  </div>
+  <div class="demo-controls">
+    @for (n of colChoices; track n) {
+      <Button variant={{ colVariant(n) }} on:click={{ () => setCols(n) }}>{{ n }} cols</Button>
+    }
+  </div>
+  <div class="demo-controls">
+    <Button variant={{ chromeVariant() }} on:click={{ toggleChrome }}>{{ chromeLabel() }}</Button>
+    <Button variant={{ richVariant() }} on:click={{ toggleRich }}>{{ richLabel() }}</Button>
+  </div>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ rebuild }}>Rebuild</Button>
+    <Button variant="ghost" on:click={{ resort }}>Re-sort (keyed move)</Button>
+    <Button variant="ghost" on:click={{ clear }}>Clear</Button>
+  </div>
+  <p class="demo-note">
+    Column mix: {{ mixSummary() }} · actions fired: {{ actionCount() }}
+  </p>
+
+  <h2>Results</h2>
+  @if (results().length === 0) {
+    <p class="demo-note">Press a size or <kbd>Rebuild</kbd> to take a measurement.</p>
+  } @else {
+    <table class="log">
+      <thead>
+        <tr>
+          <th scope="col">run</th>
+          <th scope="col">build</th>
+          <th scope="col">paint</th>
+          <th scope="col">DOM nodes</th>
+          <th scope="col">cells</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (entry of results(); track entry) {
+          <tr>
+            <td>{{ entry.label }}</td>
+            <td>{{ entry.build.toFixed(1) }} ms</td>
+            <td>{{ entry.paint.toFixed(1) }} ms</td>
+            <td>{{ entry.nodes }}</td>
+            <td>{{ entry.cells }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+
+  <h2>The grid</h2>
+  <div class="bench-stage" ref={{ host }}>
+    <Table columns={{ columns() }} dataSource={{ rows }} trackBy={{ (row: BenchRow) => row.id }}
+           maxHeight={{ 420 }} resizableColumns={{ chrome() }} selectable={{ chrome() }}
+           expandable={{ chrome() }} detail={{ (row: BenchRow) => 'Detail for row ' + row.id }}
+           ariaLabel="Benchmark grid" />
+  </div>
+</article>
