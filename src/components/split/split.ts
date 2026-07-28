@@ -302,9 +302,9 @@ export function setup(props: SplitProps): SplitRenderContext {
     onCleanup(() => observer.disconnect());
   });
 
-  // Measure again once the element is actually in the document. The effect above runs when the ref is
-  // assigned, which is during render while the tree is still detached — `getBoundingClientRect()`
-  // there is all zeroes.
+  // Measure again once the element is in the document. The effect above runs when the ref is assigned,
+  // which is during render while the tree is still detached, and `getBoundingClientRect()` there is
+  // all zeroes. `onMount` is the point where the element is connected and laid out.
   onMount(measure);
 
   /* ─────────────────────────── initial load ─────────────────────────── */
