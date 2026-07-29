@@ -27,6 +27,7 @@ import { BUILT_IN_RENDERERS, NUMERIC_TYPES } from './renderers.js';
 import { markRow, type RowEventOptions } from './row-events.js';
 import { BUILT_IN_FILTERS, odataQuery, type FilterRenderer, type QueryBuilder } from './filters.js';
 import type { ColumnsPanelOptions } from './columns-panel.js';
+import type { EnumTables } from './enums.js';
 
 /** What a page of rows is asked for with. `offset` counts rows; `cursor` counts pages. */
 export type PageMode = 'offset' | 'cursor';
@@ -106,8 +107,17 @@ export interface TablePluginOptions<TRow> {
 
   translate?: (key: string, params?: Record<string, unknown>) => string;
   formatDate?: (value: unknown, format?: string) => string;
-  /** Enum tables by name, each a list of `{ value, name }` (a `displayName` wins when present). */
-  enums?: Record<string, readonly { value: unknown; name?: string; displayName?: string }[]>;
+  /**
+   * Enum tables by name, each a list of `{ value, name }` (a `displayName` wins when present).
+   *
+   * Pass a getter when they are fetched: an application typically loads its enums once, over the
+   * network, and they can easily land AFTER the first page of rows. Read reactively, a late
+   * arrival re-renders the enum cells and fills the enum filters; read once, those columns stay
+   * blank for the life of the grid with nothing reporting it.
+   *
+   * `enumsFromList` converts the `[{ name, values }]` shape an API usually returns.
+   */
+  enums?: EnumTables | (() => EnumTables);
   checkRole?: (roles: string[]) => boolean;
 
   /** Applied once at construction. Async loading is the caller's business — call `setPreferences`. */
@@ -259,6 +269,9 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
 
   const roleOk = (roles?: string[]): boolean => !roles || !options.checkRole || options.checkRole(roles);
 
+  const enumTables: () => EnumTables =
+    typeof options.enums === 'function' ? options.enums : (): EnumTables => options.enums ?? {};
+
   // Refused here rather than left to `<Table>`, which raises the same thing from inside its own setup
   // — deep in a render, and phrased in its own vocabulary. This fires while the grid is being
   // configured, where the option was actually written.
@@ -398,7 +411,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     formatDate: (value: unknown, format?: string): string =>
       options.formatDate ? options.formatDate(value, format) : String(value ?? ''),
     enumValue: (enumName: string, value: unknown): string => {
-      const table = options.enums?.[enumName];
+      const table = enumTables()[enumName];
       const found = table?.find((entry) => entry.value === value);
       return found?.displayName ?? found?.name ?? '';
     },
@@ -604,7 +617,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
         return render({
           column: resolved,
           value: filterValues()[resolved.name],
-          enums: options.enums,
+          enums: enumTables(),
           api,
           commit: (next: unknown): void => {
             const merged: Record<string, unknown> = { ...filterValues() };

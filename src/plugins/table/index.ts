@@ -43,6 +43,9 @@ export type {
 export { BUILT_IN_TYPES, resolveColumns, validateColumns } from './columns.js';
 export { BUILT_IN_RENDERERS } from './renderers.js';
 
+export { enumsFromList } from './enums.js';
+export type { EnumEntry, EnumTables, EnumList } from './enums.js';
+
 export { BUILT_IN_FILTERS, odataQuery, rawQuery } from './filters.js';
 export type { FilterProps, FilterRenderer, QueryBuilder } from './filters.js';
 

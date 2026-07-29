@@ -26,7 +26,9 @@ import {
   tablePlugin,
   tableRows,
   columnsPanel,
+  enumsFromList,
   type ColumnConfig,
+  type EnumTables,
   type TableActionEvent,
   type TablePluginApi,
   type ResolvedColumn,
@@ -113,6 +115,9 @@ export function setup(): TablePageContext {
   const log: Signal<LogEntry[]> = signal<LogEntry[]>([]);
   // Stands in for what a server would report alongside a page.
   const total: Signal<number> = signal<number>(248);
+  // Empty at first, on purpose: this is the race a real application has, where the enums come over
+  // the network and can land after the first page of rows.
+  const enums: Signal<EnumTables> = signal<EnumTables>({});
   let seq: number = 0;
 
   const record = (kind: string, detail: string): void => {
@@ -128,14 +133,8 @@ export function setup(): TablePageContext {
     // cell renderer has to be.
     cells: { 'status-chip': StatusChip },
 
-    enums: {
-      DocumentStateType: [
-        { value: 0, displayName: 'Received' },
-        { value: 1, displayName: 'Translated' },
-        { value: 2, displayName: 'Delivered' },
-        { value: 3, displayName: 'Acknowledged' },
-      ],
-    },
+    // A getter, so the tables can arrive late and still fill the cells and the filters.
+    enums: enums,
     // Only an Admin sees the `internalNote` column. Denied here, so the column is DROPPED rather than
     // hidden — a column nobody may see must not be switchable back on from the columns menu.
     checkRole: (roles: string[]): boolean => roles.includes('Operator'),
@@ -214,8 +213,30 @@ export function setup(): TablePageContext {
         if (!cancelled) status.set(`failed: ${String(error)}`);
       });
     // #endregion
+
+    // The enums arrive a beat after the columns, the way a second request would. Nothing waits for
+    // them: the State column renders blank until they land, then fills in.
+    const enumTimer: ReturnType<typeof setTimeout> = setTimeout(() => {
+      if (cancelled) return;
+      enums.set(
+        enumsFromList([
+          {
+            name: 'DocumentStateType',
+            values: [
+              { value: 0, displayName: 'Received' },
+              { value: 1, displayName: 'Translated' },
+              { value: 2, displayName: 'Delivered' },
+              { value: 3, displayName: 'Acknowledged' },
+            ],
+          },
+        ])
+      );
+      status.set(`${status()} \u00b7 enums loaded`);
+    }, 900);
+
     return () => {
       cancelled = true;
+      clearTimeout(enumTimer);
     };
   });
 

@@ -11,6 +11,7 @@
  * own date cell registers `timestamp` and the built-in steps aside.
  */
 
+import { effect } from '@weave-framework/runtime';
 import Icon from '@weave-framework/ui/icon';
 import type { CellProps, CellRenderer } from './contract.js';
 
@@ -29,9 +30,24 @@ const timestamp: CellRenderer = ({ value, column, api }: CellProps): string => {
   return api.formatDate(value, column.options.format as string | undefined);
 };
 
-const enumeration: CellRenderer = ({ value, column, api }: CellProps): string => {
-  if (value == null) return '';
-  return api.enumValue(column.options.enum as string, value);
+/**
+ * An enum member's display name — as a LIVE text node, not a string.
+ *
+ * A cell is mounted once. `<Table>` keys its cells by column, so when only the enum tables change
+ * the keys are identical, the keyed diff keeps the existing DOM, and a freshly returned string is
+ * discarded. Enums are the one thing a grid routinely does not have yet at first render — they come
+ * over the network — so this is not a corner case: it is the normal path, and returning a string
+ * leaves the column permanently blank with nothing reporting it.
+ *
+ * A `Text` node costs no element and updates in place, so the effect below is the whole fix. Any
+ * consumer cell that resolves against data which can arrive later needs to do the same.
+ */
+const enumeration: CellRenderer = ({ value, column, api }: CellProps): Node => {
+  const node: Text = document.createTextNode('');
+  effect(() => {
+    node.nodeValue = value == null ? '' : api.enumValue(column.options.enum as string, value);
+  });
+  return node;
 };
 
 /**

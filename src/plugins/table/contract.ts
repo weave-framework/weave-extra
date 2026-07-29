@@ -18,7 +18,13 @@
  *     One place decides what a cell control does to the row's own click handling, so the answer is
  *     the same in every column.
  *  5. **Styles live beside the component**, as everywhere else in this package.
- *  6. **Return a string when a string will do.** Measured on a 200 × 20 grid, cells that are real
+ *  6. **A cell that resolves against data which can arrive LATER must return a live node.**
+ *     Cells are mounted once: `<Table>` keys them by column, so when only that outside data changes
+ *     the keys are identical, the keyed diff keeps the existing DOM, and a freshly returned string
+ *     is thrown away. Return a `Text` node (or an element) and drive it from an `effect` — the
+ *     built-in `enum` cell does exactly this, because enum tables normally arrive over the network
+ *     after the first page of rows.
+ *  7. **Return a string when a string will do.** Measured on a 200 × 20 grid, cells that are real
  *     components roughly double the DOM and add ~40% to build time. That is a fine price for a status
  *     chip and a poor one for a date, so the built-in simple types return strings and consumers should
  *     reach for a component only when there is something to compose.

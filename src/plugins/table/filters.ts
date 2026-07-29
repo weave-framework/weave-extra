@@ -16,6 +16,7 @@
 import Input from '@weave-framework/ui/input';
 import Select from '@weave-framework/ui/select';
 import type { CellApi, ResolvedColumn } from './contract.js';
+import type { EnumTables } from './enums.js';
 
 /** See `CellComponent`: a compiled component is declared as returning `unknown`. */
 const asNode = (value: unknown): Node => value as Node;
@@ -28,7 +29,7 @@ export interface FilterProps {
   commit: (value: unknown) => void;
   api: CellApi;
   /** Enum tables, for a type that resolves values against one. */
-  enums?: Record<string, readonly { value: unknown; name?: string; displayName?: string }[]>;
+  enums?: EnumTables;
 }
 
 /** A filter control. Return `null` for a column that should have none. */
@@ -73,7 +74,12 @@ function selectFilter(props: FilterProps, options: Option[]): Node {
   return asNode(
     Select<Option>({
       options,
-      value: options.find((option) => option.value === current),
+      // A string, not the option object: `<Select>` accepts `string | T` for its value and emits
+      // the VALUE by default (`emit: 'object'` is what returns the object). Reading `.value` off
+      // what it emits therefore reads a property of a string — `undefined` — and every pick
+      // committed an empty filter while still firing a change. Symmetry is the fix: give it a
+      // value, take a value.
+      value: current === '' ? undefined : current,
       optionValue: (option: Option): string => option.value,
       optionLabel: (option: Option): string => option.label,
       class: FILTER_CLASS,
@@ -81,8 +87,7 @@ function selectFilter(props: FilterProps, options: Option[]): Node {
       clearable: true,
       placeholder: 'All',
       onChange: (next: unknown): void => {
-        const picked: Option | undefined = next as Option | undefined;
-        props.commit(picked ? picked.value : undefined);
+        props.commit(typeof next === 'string' && next !== '' ? next : undefined);
       },
     })
   );
