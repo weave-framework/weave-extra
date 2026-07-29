@@ -63,6 +63,9 @@
     <Button variant="ghost" on:click={{ toggleExtra }}>
       @if (extraAdded()) { Remove the added action } @else { Add an action at runtime }
     </Button>
+    <Button variant="ghost" on:click={{ toggleActionsIn }}>
+      @if (actionsIn() === 'both') { Move the row actions into the menu } @else { Bring the action buttons back }
+    </Button>
     <Button variant="ghost" on:click={{ toggleBusy }}>
       @if (busy()) { Stop pretending to be busy } @else { Pretend a request is running }
     </Button>
@@ -96,6 +99,12 @@
     from the last row touched — and the anchor stays put, so a range can be stretched and shrunk
     without starting again. A Shift-range runs over the rows <em>as displayed</em>, so it respects the
     filter, the sort and the page.
+  </p>
+  <p>
+    <strong>Row actions</strong> are one list rendered two ways. <code>actionsIn: 'menu'</code> drops the
+    button column and leaves every action in the right-click menu — the button above switches it while
+    the grid is running. A single action overrides it with its own <code>showIn</code>:
+    <strong>Delete</strong> here is <code>'menu'</code> whatever the table-wide setting says.
   </p>
   <p>
     <strong>Rows</strong> take a click, a double-click and a right-click menu, and carry classes from

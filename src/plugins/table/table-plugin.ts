@@ -14,7 +14,9 @@
  * directly, because two parallel paths for the same event is how they drift apart.
  *
  * **One list of actions.** Row actions and the row's context menu are the same array with a
- * `showIn`, not two inputs a caller has to keep in step by hand.
+ * `showIn`, not two inputs a caller has to keep in step by hand. `actionsIn` sets the default for
+ * the whole list, so a grid can drop the button column and keep every action in the menu without
+ * touching a single entry.
  */
 
 import { computed, effect, signal, type Computed, type Signal } from '@weave-framework/runtime';
@@ -36,6 +38,9 @@ export type PageMode = 'offset' | 'cursor';
 /** See `CellComponent`: a compiled component is declared as returning `unknown`. */
 const asNode = (value: unknown): Node => value as Node;
 
+/** Where a row action appears: as a button in the row, in the row's right-click menu, or both. */
+export type ActionPlacement = 'row' | 'menu' | 'both';
+
 /** A row action. The same entry renders in the row and in the row's context menu. */
 export interface TableAction<TRow> {
   /** Identifier reported back through `onAction`. */
@@ -44,8 +49,8 @@ export interface TableAction<TRow> {
   /** Label, or a translation key when `translate` is set. */
   title?: string;
   translate?: boolean;
-  /** Where it appears. Default `'both'` — one list, two renderings. */
-  showIn?: 'row' | 'menu' | 'both';
+  /** Where this one appears, overriding {@link TablePluginOptions.actionsIn} for itself. */
+  showIn?: ActionPlacement;
   /** Hide entirely for rows that do not qualify. */
   visible?: (row: TRow) => boolean;
   /** Render, but inert. */
@@ -211,6 +216,20 @@ export interface TablePluginOptions<TRow> {
   cells?: Record<string, CellSource<TRow>>;
   /** Row actions and context-menu entries — one list. */
   actions?: readonly TableAction<TRow>[];
+  /**
+   * Where the actions in that list appear by default. `'both'` unless said otherwise.
+   *
+   * `'menu'` is the interesting one: the buttons disappear and the right-click menu keeps every
+   * action — a grid that reads as data rather than as a column of icons repeated down the page. On a
+   * wide table that is a column back, and on a dense one it is a lot of visual noise gone.
+   *
+   * Pass a getter to switch it while the grid is on screen; the actions column comes and goes with
+   * it. A per-action `showIn` still wins, so one action can stay a button while the rest move.
+   *
+   * The cost is discoverability: a right-click menu is invisible until someone tries it. Worth it
+   * for an expert tool used all day, a poor trade for a screen someone visits twice a year.
+   */
+  actionsIn?: ActionPlacement | (() => ActionPlacement);
   /**
    * The table-wide actions, in the grid's own header.
    *
@@ -711,22 +730,20 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
    * and a bar outside its frame reads as page furniture that happens to sit nearby. The trailing
    * sticky column also puts them beside the per-row actions they are the table-wide counterpart of.
    *
-   * ONE element, kept across renders, with its state driven by an effect. A header cell is mounted
-   * once: `<Table>` keys the header by column, so returning a newly built bar on each render hands
-   * over something that is immediately discarded — the toggle would flip the signal and the DOM
-   * would keep the old button, which is exactly how it looked dead.
+   * A fresh element per call, and its state driven by an effect inside it. Both halves matter. The
+   * effect, because a header cell is mounted ONCE per column key: a bar whose pressed state was read
+   * at build time would freeze, which is exactly how the filter toggle came to look dead. And fresh
+   * rather than cached, because the effect belongs to the owner that mounted it — hand the same
+   * element back to a later mount and it arrives with its effect already torn down by the disposal
+   * of the mount before it, which is a bar that renders once and then never updates again.
    */
-  let bar: HTMLElement | null = null;
   const headerBar = (): Node => {
-    if (bar) return bar;
     const host: HTMLElement = document.createElement('div');
     host.className = 'weave-extra-table__header-actions';
-    bar = host;
-    // The element is permanent; its CONTENTS are not. One effect re-fills it whenever the resolved
-    // list changes — an action added at runtime, one whose `visible` turned true, a role that
-    // arrived with the session. Per-control effects are stopped on the way out: they were created
-    // here rather than under a Weave owner, so nothing else would ever tear them down, and a bar
-    // rebuilt a dozen times would otherwise leave a dozen live effects writing to detached nodes.
+    // The element outlives its CONTENTS. One effect re-fills it whenever the resolved list changes —
+    // an action added at runtime, one whose `visible` turned true, a role that arrived with the
+    // session. Per-control effects are stopped on the way out: a bar rebuilt a dozen times would
+    // otherwise leave a dozen live effects writing into nodes that are no longer on screen.
     effect(() => {
       const items: readonly GlobalAction[] = globalActionList();
       const stops: (() => void)[] = [];
@@ -842,6 +859,15 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
   const titleOf = (item: { title?: string; translate?: boolean; action: string }): string =>
     item.translate && item.title ? translate(item.title) : (item.title ?? item.action);
 
+  // One list, two renderings, and one place that decides which of them an entry gets. Read live, so
+  // a grid can move its actions into the menu and back while it is on screen.
+  const placementOption: ActionPlacement | (() => ActionPlacement) | undefined = options.actionsIn;
+  const actionsIn: () => ActionPlacement =
+    typeof placementOption === 'function' ? placementOption : (): ActionPlacement => placementOption ?? 'both';
+  const placementOf = (item: TableAction<TRow>): ActionPlacement => item.showIn ?? actionsIn();
+  const showsAsButton = (item: TableAction<TRow>): boolean => placementOf(item) !== 'menu';
+  const showsInMenu = (item: TableAction<TRow>): boolean => placementOf(item) !== 'row';
+
   /**
    * The table-wide actions, resolved.
    *
@@ -945,7 +971,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     }
 
     const rowActions: readonly TableAction<TRow>[] = (options.actions ?? []).filter(
-      (item) => item.showIn !== 'menu' && roleOk(item.roles)
+      (item) => showsAsButton(item) && roleOk(item.roles)
     );
     // Read reactively: the column has to APPEAR when the first global action is added to a grid
     // that had none, and widen when the bar grows. Both cost a re-render of the header, which is
@@ -955,7 +981,17 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     // table-wide ones in its header. Either alone is reason enough for the column to exist.
     if (rowActions.length > 0 || headerCount > 0) {
       out.push({
-        key: '__actions',
+        /**
+         * The key carries the row-action count, and that is load-bearing.
+         *
+         * A cell is mounted ONCE per (row, column) key. Re-returning a different `cell` under the
+         * same key changes nothing — the keyed diff sees the same column and keeps the DOM it has.
+         * So moving the actions into the menu, or a role arriving that adds one, has to arrive as a
+         * new column identity or the buttons simply stay on screen. Only the count is in the key,
+         * not the action names: it is what changes what a cell RENDERS, and a wider key would remount
+         * the column for changes that render the same thing.
+         */
+        key: `__actions:${rowActions.length}`,
         // Built once and handed back on every render: a header cell is mounted ONCE, because
         // `<Table>` keys its header by column and the key does not change when a control inside it
         // does. A freshly built bar would be discarded, which is why the filter toggle appeared dead
@@ -1050,7 +1086,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     },
     menuActions: (row: TRow) =>
       (options.actions ?? [])
-        .filter((item) => item.showIn !== 'row' && roleOk(item.roles))
+        .filter((item) => showsInMenu(item) && roleOk(item.roles))
         .filter((item) => !item.visible || item.visible(row))
         .map((item) => ({
           action: item.action,
@@ -1154,7 +1190,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
       },
       menuItems: (row: TRow) =>
         (options.actions ?? [])
-          .filter((item) => item.showIn !== 'row' && roleOk(item.roles))
+          .filter((item) => showsInMenu(item) && roleOk(item.roles))
           .filter((item) => !item.visible || item.visible(row))
           .map((item) => ({
             value: item.action,

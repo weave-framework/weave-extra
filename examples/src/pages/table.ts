@@ -31,6 +31,7 @@ import {
   columnsPanel,
   enumsFromList,
   FILTER_ACTION,
+  type ActionPlacement,
   type ColumnConfig,
   type GlobalAction,
   type EnumTables,
@@ -106,6 +107,8 @@ export interface TablePageContext {
   extraAdded: () => boolean;
   toggleExtra: () => void;
   toggleBusy: () => void;
+  actionsIn: () => ActionPlacement;
+  toggleActionsIn: () => void;
   menuColumns: () => ResolvedColumn[];
   isOn: (column: ResolvedColumn) => boolean;
   toggle: (column: ResolvedColumn) => void;
@@ -135,6 +138,8 @@ export function setup(): TablePageContext {
   /** The disposer for the action added at runtime; null when it is not in the bar. */
   let dropExtra: (() => void) | null = null;
   const extraAdded: Signal<boolean> = signal<boolean>(false);
+  /** Where the row actions live — switched from the controls under the grid. */
+  const actionsIn: Signal<ActionPlacement> = signal<ActionPlacement>('both');
 
   const record = (kind: string, detail: string): void => {
     seq += 1;
@@ -178,6 +183,9 @@ export function setup(): TablePageContext {
       },
     ],
     actionsColumnWidth: 168,
+    // A getter, so the button column can be dropped and restored while the grid is on screen. The
+    // menu keeps every action either way — `delete` has always been menu-only.
+    actionsIn: (): ActionPlacement => actionsIn(),
     actions: [
       { action: 'open', icon: 'eye', title: 'Open document' },
       { action: 'reprocess', icon: 'package', title: 'Reprocess', visible: (row) => row.isReprocessable },
@@ -353,6 +361,10 @@ export function setup(): TablePageContext {
     extraAdded,
     toggleBusy: (): void => {
       busy.set(!busy());
+    },
+    actionsIn,
+    toggleActionsIn: (): void => {
+      actionsIn.set(actionsIn() === 'both' ? 'menu' : 'both');
     },
     menuColumns: (): ResolvedColumn[] => grid.allColumns(),
     isOn: (column: ResolvedColumn): boolean => !(grid.preferences().hidden ?? []).includes(column.name),

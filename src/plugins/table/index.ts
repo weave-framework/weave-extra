@@ -8,6 +8,7 @@
 
 export { tablePlugin, FILTER_ACTION } from './table-plugin.js';
 export type {
+  ActionPlacement,
   GlobalAction,
   GlobalActionContext,
   GlobalActionPlacement,
