@@ -241,3 +241,31 @@ $topbar-h: var(--weave-toolbar-height, 52px);
   display: inline-flex;
   gap: 2px;
 }
+
+/* ── Table plugin: the filter row ── */
+
+// A filter cell is a row of the table, not a form: it has to fit the header's height, so the library
+// controls are shrunk here rather than being given a compact variant of their own. The label each one
+// carries is for a screen reader — there is no room to draw it, and the column header above already
+// says what the box filters.
+.weave-extra-table__filter {
+  --weave-input-height: 26px;
+  --weave-select-height: 26px;
+  inline-size: 100%;
+  font-size: 12px;
+}
+
+.weave-extra-table__filter .weave-input__label,
+.weave-extra-table__filter .weave-select__label {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.weave-table__header-row--secondary .weave-table__header-filter-cell {
+  padding: 3px 6px;
+  vertical-align: middle;
+}

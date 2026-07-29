@@ -32,6 +32,24 @@
     <Button variant="ghost" on:click={{ reset }}>Reset</Button>
   </div>
 
+  <h2>Toolbar</h2>
+  <p>
+    Header actions, and the filter toggle beside them — the same place the configuration this replaces
+    put it. Turning the filter row on adds a second row inside <code>&lt;thead&gt;</code>, so the
+    controls line up with their columns whatever the widths are.
+  </p>
+  <div class="demo-controls">
+    @for (action of grid.globalActions(); track action.action) {
+      <Button variant="ghost" on:click={{ () => grid.fire({ kind: 'global', action: action.action }) }}>
+        {{ action.title }}
+      </Button>
+    }
+    @if (grid.filtersEnabled()) {
+      <Button variant={{ grid.filtersVisible() ? 'primary' : 'ghost' }} on:click={{ grid.toggleFilters }}>Filter</Button>
+      <Button variant="ghost" on:click={{ grid.clearFilters }}>Clear filters</Button>
+    }
+  </div>
+
   <h2>The grid</h2>
   <p>
     The grid is wrapped in one element carrying <code>use:tableRows</code>. Click a row, double-click
@@ -44,7 +62,7 @@
              sort={{ grid.sort() }} onSort={{ grid.onSort }} selectable
              virtual={{ grid.virtual() }} rowHeight={{ grid.rowHeight() }}
              overscan={{ grid.overscan() }} maxHeight={{ grid.maxHeight() }}
-             ariaLabel="Documents" />
+             headerRow={{ grid.headerRow() }} ariaLabel="Documents" />
     </div>
     <!-- #endregion -->
   </Demo>

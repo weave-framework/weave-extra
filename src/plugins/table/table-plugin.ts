@@ -25,6 +25,7 @@ import type { CellApi, CellRenderer, CellSource, ResolvedColumn } from './contra
 import { BUILT_IN_TYPES, resolveColumns, validateColumns, type ColumnConfig } from './columns.js';
 import { BUILT_IN_RENDERERS, NUMERIC_TYPES } from './renderers.js';
 import { markRow, type RowEventOptions } from './row-events.js';
+import { BUILT_IN_FILTERS, odataQuery, type FilterRenderer, type QueryBuilder } from './filters.js';
 
 /** See `CellComponent`: a compiled component is declared as returning `unknown`. */
 const asNode = (value: unknown): Node => value as Node;
@@ -53,6 +54,7 @@ export type TableActionEvent<TRow> =
   | { kind: 'item'; action: string; row: TRow }
   | { kind: 'row'; gesture: 'click' | 'doubleclick'; row: TRow }
   | { kind: 'global'; action: string }
+  | { kind: 'filter'; filters: Readonly<Record<string, unknown>>; query: unknown }
   | { kind: 'columns'; reason: ColumnChangeReason; preferences: TablePreferences };
 
 export type ColumnChangeReason = 'visibility' | 'order' | 'reset' | 'load';
@@ -100,6 +102,22 @@ export interface TablePluginOptions<TRow> {
 
   /** Make every column resizable unless its config says otherwise. */
   resizableColumns?: boolean;
+
+  /**
+   * Offer a filter control per column, in a second header row.
+   *
+   * The control comes from {@link filterTypes} keyed on the column's type, and a column with
+   * `searchDisabled` gets none. Committing one reports through `onAction` as `{ kind: 'filter' }`
+   * with both the raw values and the built query — the grid does not filter anything itself, because
+   * the rows it was given are a page from a server that has to do the filtering.
+   */
+  filters?: boolean;
+  /** Filter controls by column type. Overrides the built-ins for that type. */
+  filterTypes?: Record<string, FilterRenderer>;
+  /** Turns the committed values into a query. Default: an OData `$filter` string. */
+  buildQuery?: QueryBuilder;
+  /** Start with the filter row showing. Default false — it opens from the toolbar. */
+  filtersVisible?: boolean;
 
   /**
    * Report clicks, double-clicks and a right-click menu on rows.
@@ -152,6 +170,22 @@ export interface TablePluginApi<TRow> {
   menuActions: (row: TRow) => { action: string; icon?: string; title: string; disabled: boolean }[];
   fire: (event: TableActionEvent<TRow>) => void;
   api: CellApi;
+
+  /** The committed filter values, by column name. */
+  filters: Computed<Readonly<Record<string, unknown>>>;
+  /** The built query for the current filters — whatever `buildQuery` produced. */
+  filterQuery: Computed<unknown>;
+  /** Whether a filter row is configured at all. */
+  filtersEnabled: () => boolean;
+  filtersVisible: () => boolean;
+  toggleFilters: () => void;
+  clearFilters: () => void;
+  /**
+   * Feed to `<Table headerRow={{ grid.headerRow() }} />`. Returns `undefined` while the filter row is
+   * hidden, which is what makes `<Table>` leave the second row out entirely rather than draw an empty
+   * one.
+   */
+  headerRow: () => ((column: TableColumn<TRow>) => Node | null) | undefined;
 
   /**
    * Wiring for the `tableRows` action — attach it to the element wrapping the grid:
@@ -231,6 +265,8 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
   const order: Signal<string[] | null> = signal<string[] | null>(options.preferences?.order ?? null);
   const hidden: Signal<string[] | null> = signal<string[] | null>(options.preferences?.hidden ?? null);
   const sort: Signal<SortState> = signal<SortState>(options.preferences?.sort ?? { active: null, direction: null });
+  const filterValues: Signal<Record<string, unknown>> = signal<Record<string, unknown>>({});
+  const showFilters: Signal<boolean> = signal<boolean>(options.filtersVisible === true);
 
   const effectiveOrder = (): string[] => order() ?? defaults().order;
   const effectiveHidden = (): string[] => hidden() ?? defaults().hidden;
@@ -245,6 +281,11 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     sort: sort(),
   }));
 
+  const reportFilters = (): void => {
+    const values: Readonly<Record<string, unknown>> = filterValues();
+    fire({ kind: 'filter', filters: values, query: buildQuery(values, base()) });
+  };
+
   const report = (reason: ColumnChangeReason): void => {
     const next: TablePreferences = preferences();
     options.onPreferencesChange?.(next, reason);
@@ -254,6 +295,14 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
   // The shared api has no row to speak of, so its `action` is the HEADER's channel. A cell never
   // sees this one: `apiFor` below rebinds `action` to the row and column it was built for, which is
   // what lets a cell say `api.action('open')` and have the consumer receive both.
+  const filterRenderers: Record<string, FilterRenderer> = {
+    ...BUILT_IN_FILTERS,
+    ...(options.filterTypes ?? {}),
+  };
+  const buildQuery: QueryBuilder = options.buildQuery ?? odataQuery;
+  const filterQuery0 = computed<Readonly<Record<string, unknown>>>(() => filterValues());
+  const filterQuery = computed<unknown>(() => buildQuery(filterValues(), base()));
+
   const api: CellApi = {
     action: (name: string, _data?: unknown, event?: Event): void => {
       event?.stopPropagation();
@@ -440,6 +489,39 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
           title: titleOf(item),
           disabled: item.disabled ? item.disabled(row) : false,
         })),
+    filters: filterQuery0,
+    filterQuery,
+    filtersEnabled: (): boolean => options.filters === true,
+    filtersVisible: (): boolean => options.filters === true && showFilters(),
+    toggleFilters: (): void => {
+      showFilters.set(!showFilters());
+    },
+    clearFilters: (): void => {
+      filterValues.set({});
+      reportFilters();
+    },
+    headerRow: () => {
+      if (options.filters !== true || !showFilters()) return undefined;
+      return (column: TableColumn<TRow>): Node | null => {
+        const resolved: ResolvedColumn | undefined = base().find((entry) => entry.name === column.key);
+        if (!resolved || !resolved.filterable) return null;
+        const render: FilterRenderer | undefined = filterRenderers[resolved.type];
+        if (!render) return null;
+        return render({
+          column: resolved,
+          value: filterValues()[resolved.name],
+          enums: options.enums,
+          api,
+          commit: (next: unknown): void => {
+            const merged: Record<string, unknown> = { ...filterValues() };
+            if (next === undefined || next === '') delete merged[resolved.name];
+            else merged[resolved.name] = next;
+            filterValues.set(merged);
+            reportFilters();
+          },
+        });
+      };
+    },
     fire,
     api,
     rowEvents: {

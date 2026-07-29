@@ -134,6 +134,11 @@ export function setup(): TablePageContext {
     formatDate: (value: unknown): string =>
       new Date(value as number).toISOString().slice(0, 16).replace('T', ' '),
 
+    globalActions: [
+      { action: 'reload', icon: 'refresh-cw', title: 'Reload' },
+      { action: 'export', icon: 'download', title: 'Export' },
+    ],
+
     actions: [
       { action: 'open', icon: 'external-link', title: 'Open document' },
       { action: 'reprocess', icon: 'refresh-cw', title: 'Reprocess', visible: (row) => row.isReprocessable },
@@ -150,6 +155,10 @@ export function setup(): TablePageContext {
     // marks one cell per row and delegates from the wrapper.
     rowEvents: true,
 
+    // A filter control per column, in a second header row. The grid filters nothing itself: the rows
+    // it holds are a page from a server, so a commit reports the query and the page is reloaded.
+    filters: true,
+
     // One handler. Everything the grid can report arrives here, with the row in its original shape —
     // no transform step on the way out.
     onAction: (event: TableActionEvent<DocumentRow>): void => {
@@ -157,6 +166,7 @@ export function setup(): TablePageContext {
       else if (event.kind === 'item') record('item', `${event.action} · row ${event.row.id}`);
       else if (event.kind === 'row') record('row', `${event.gesture} · row ${event.row.id}`);
       else if (event.kind === 'global') record('global', event.action);
+      else if (event.kind === 'filter') record('filter', String(event.query) || '(cleared)');
       else record('columns', `${event.reason} · ${(event.preferences.hidden ?? []).length} hidden`);
     },
   });
