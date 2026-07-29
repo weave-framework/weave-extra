@@ -53,6 +53,14 @@
     </div>
     <!-- #endregion -->
   </Demo>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ toggleExtra }}>
+      @if (extraAdded()) { Remove the added action } @else { Add an action at runtime }
+    </Button>
+    <Button variant="ghost" on:click={{ toggleBusy }}>
+      @if (busy()) { Stop pretending to be busy } @else { Pretend a request is running }
+    </Button>
+  </div>
   <p class="demo-note">{{ status() }}</p>
 
   <h2>What it does</h2>
@@ -61,6 +69,12 @@
     line up with their columns whatever the widths are. Type and press <kbd>Enter</kbd>, or pick from a
     list. The plugin filters nothing itself — it reports the query, and this page plays the server by
     applying it, which is exactly where your own fetch would go.
+  </p>
+  <p>
+    <strong>The controls in the header</strong> are the table-wide actions, and the list is live. The
+    buttons above the log add one at runtime — anchored in front of the filter toggle, not appended —
+    and grey the others out the way a request in flight would. The number on the right is not a button
+    at all: an action can render its own control, and that one counts the matching rows.
   </p>
   <p>
     <strong>Right-click any column header</strong> for the columns panel: switch one off, or drag a

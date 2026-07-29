@@ -28,6 +28,12 @@
  *     components roughly double the DOM and add ~40% to build time. That is a fine price for a status
  *     chip and a poor one for a date, so the built-in simple types return strings and consumers should
  *     reach for a component only when there is something to compose.
+ *
+ * Rule 6 is not about cells alone — it is the shape of everything this plugin mounts. A global
+ * action's own `render` is called ONCE when the header bar is filled, and the bar is a single element
+ * kept across every render of the header, because `<Table>` keys the header by column. Anything in it
+ * that shows changing data has to be a live node for exactly the reason a cell does. What is NOT the
+ * consumer's problem there: `visible`, `disabled` and `active` are getters the plugin reads itself.
  */
 
 /** How a cell talks back. The only outbound channel a cell has. */

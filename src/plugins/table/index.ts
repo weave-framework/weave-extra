@@ -6,8 +6,12 @@
  * one screen safe to drop into another.
  */
 
-export { tablePlugin } from './table-plugin.js';
+export { tablePlugin, FILTER_ACTION } from './table-plugin.js';
 export type {
+  GlobalAction,
+  GlobalActionContext,
+  GlobalActionPlacement,
+  GlobalActionView,
   TableAction,
   TableActionEvent,
   TablePreferences,

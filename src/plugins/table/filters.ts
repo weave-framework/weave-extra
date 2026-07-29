@@ -108,6 +108,39 @@ function textFilter(props: FilterProps, type: string): Node {
   return node;
 }
 
+/** A list to pick one value from — the control for booleans and enums. */
+function selectFilter(props: FilterProps, options: Option[]): Node {
+  return asNode(
+    Select<Option>({
+      options,
+      /**
+       * A getter, and a string.
+       *
+       * A getter because `<Select>` reads its value reactively, and passing a plain value makes it a
+       * CONTROLLED component whose prop then never changes — so the trigger kept saying "All" after
+       * a pick, and kept saying the old value after the filter was cleared. Read live, the trigger
+       * always shows what is actually in force.
+       *
+       * A string because `<Select>` takes `string | T` and emits the VALUE by default (`emit:
+       * 'object'` is what returns the object). Give it a value, take a value.
+       */
+      get value(): string | undefined {
+        const current: unknown = props.value();
+        return current == null || current === '' ? undefined : String(current);
+      },
+      optionValue: (option: Option): string => option.value,
+      optionLabel: (option: Option): string => option.label,
+      class: FILTER_CLASS,
+      label: `Filter ${props.column.title}`,
+      clearable: true,
+      placeholder: 'All',
+      onChange: (next: unknown): void => {
+        props.commit(typeof next === 'string' && next !== '' ? next : undefined);
+      },
+    })
+  );
+}
+
 const text: FilterRenderer = (props: FilterProps): Node => textFilter(props, 'text');
 const numeric: FilterRenderer = (props: FilterProps): Node => textFilter(props, 'number');
 

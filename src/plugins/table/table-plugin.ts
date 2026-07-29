@@ -53,12 +53,76 @@ export interface TableAction<TRow> {
   roles?: string[];
 }
 
+/**
+ * A table-wide action — one control in the grid's own header.
+ *
+ * Every predicate is a GETTER rather than a value, because this list is live: the bar is built once
+ * and re-derived whenever anything it reads changes, so an action can appear when a selection is
+ * made, grey out while a request is in flight, and go pressed when what it controls is on. A value
+ * read at construction would freeze on the day the table was configured.
+ */
+export interface GlobalAction {
+  /** Identifier reported back through `onAction`. {@link FILTER_ACTION} is reserved. */
+  action: string;
+  icon?: string;
+  /** Label, or a translation key when `translate` is set. Falls back to `action`. */
+  title?: string;
+  translate?: boolean;
+  /** Checked through the configured `checkRole`. */
+  roles?: string[];
+  /** Drop it from the bar entirely. Read live. */
+  visible?: () => boolean;
+  /** Drawn, but inert. Read live. */
+  disabled?: () => boolean;
+  /** Drawn pressed — for a control that has an on/off state, the way the filter toggle does. */
+  active?: () => boolean;
+  /**
+   * Build the control yourself — a `<Select>`, a count badge, anything.
+   *
+   * Called ONCE per appearance in the bar, so whatever it returns must be a live node in the sense
+   * of the cell contract: driven by an effect, not a value read at build time. Returning a Weave
+   * component's node is the ordinary case.
+   */
+  render?: (context: GlobalActionContext) => Node | string;
+}
+
+/** What a custom global control is handed. */
+export interface GlobalActionContext {
+  action: string;
+  /** Report this action out through `onAction`, optionally with a payload. */
+  fire: (data?: unknown) => void;
+  api: CellApi;
+}
+
+/**
+ * The reserved action name: whoever declares it, its control toggles the filter row.
+ *
+ * Reserved rather than hard-coded so the built-in can be REPLACED — declare a `filter` action of
+ * your own and you get your icon, your title, your position in the bar, and the toggle still works.
+ */
+export const FILTER_ACTION = 'filter';
+
+/** A global action resolved for rendering — titles translated, predicates read. */
+export interface GlobalActionView {
+  action: string;
+  icon?: string;
+  title: string;
+  disabled: boolean;
+  active: boolean;
+}
+
+/** Where an added action goes. Anchors name another action; unmatched anchors append. */
+export interface GlobalActionPlacement {
+  before?: string;
+  after?: string;
+}
+
 /** Everything a table can report. One handler, one switch. */
 export type TableActionEvent<TRow> =
   | { kind: 'cell'; action: string; row: TRow; column: string; value: unknown; data?: unknown }
   | { kind: 'item'; action: string; row: TRow }
   | { kind: 'row'; gesture: 'click' | 'doubleclick'; row: TRow }
-  | { kind: 'global'; action: string }
+  | { kind: 'global'; action: string; data?: unknown }
   | { kind: 'filter'; filters: Readonly<Record<string, unknown>>; query: unknown }
   | { kind: 'page'; page: number; pageSize: number; query: unknown; reason: PageChangeReason }
   | { kind: 'columns'; reason: ColumnChangeReason; preferences: TablePreferences };
@@ -100,8 +164,18 @@ export interface TablePluginOptions<TRow> {
   cells?: Record<string, CellSource<TRow>>;
   /** Row actions and context-menu entries — one list. */
   actions?: readonly TableAction<TRow>[];
-  /** Header actions. */
-  globalActions?: readonly Omit<TableAction<TRow>, 'showIn' | 'visible' | 'disabled'>[];
+  /**
+   * The table-wide actions, in the grid's own header.
+   *
+   * Pass a getter when the set itself changes — actions that only exist for a loaded document type,
+   * a bulk control that appears with a selection. The bar re-derives from it, so an action added
+   * this way arrives without the grid being rebuilt. {@link TablePluginApi.addGlobalAction} is the
+   * imperative door to the same list, for a caller that has no signal to hang this on.
+   *
+   * The filter toggle is one of these too, appended when {@link filters} is on — see
+   * {@link FILTER_ACTION}.
+   */
+  globalActions?: readonly GlobalAction[] | (() => readonly GlobalAction[]);
 
   onAction?: (event: TableActionEvent<TRow>) => void;
 
@@ -169,6 +243,14 @@ export interface TablePluginOptions<TRow> {
    * it and pays a stacking context for it.
    */
   stickyActions?: 'start' | 'end' | false;
+  /**
+   * Width of the actions column in px. Defaults to whatever the icon buttons need.
+   *
+   * Worth setting when a global action renders something that is not an icon button — a select, a
+   * search box — because the default is arithmetic over a 26px control and knows nothing about
+   * what a custom `render` puts there.
+   */
+  actionsColumnWidth?: number;
 
   /**
    * Open the columns panel on a right-click anywhere in the header. Default true.
@@ -230,8 +312,18 @@ export interface TablePluginApi<TRow> {
   /** Replace the whole preference set — the landing point for an async load. */
   setPreferences: (preferences: TablePreferences) => void;
   preferences: Computed<TablePreferences>;
-  /** Header actions, resolved against roles. */
-  globalActions: Computed<{ action: string; icon?: string; title: string }[]>;
+  /** The table-wide actions as they currently stand — roles applied, titles translated. */
+  globalActions: Computed<GlobalActionView[]>;
+  /**
+   * Add a table-wide action after construction, and get back the way to remove it.
+   *
+   * The disposer rather than a name is what you hold: a caller that adds an action for the lifetime
+   * of a mode, a selection or a loaded record has somewhere to put a teardown and nowhere sensible
+   * to keep a string. `removeGlobalAction` is there for the cases that do.
+   */
+  addGlobalAction: (action: GlobalAction, at?: GlobalActionPlacement) => () => void;
+  /** Remove an added action by name. Actions declared in the options are not removed this way. */
+  removeGlobalAction: (action: string) => void;
   /** The actions that belong in a row's context menu, for the given row. */
   menuActions: (row: TRow) => { action: string; icon?: string; title: string; disabled: boolean }[];
   fire: (event: TableActionEvent<TRow>) => void;
@@ -427,59 +519,76 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
    * would keep the old button, which is exactly how it looked dead.
    */
   let bar: HTMLElement | null = null;
-  const headerBar = (actions: readonly { action: string; icon?: string; title: string }[]): Node => {
+  const headerBar = (): Node => {
     if (bar) return bar;
-    bar = document.createElement('div');
-    bar.className = 'weave-extra-table__header-actions';
-    for (const item of actions) {
-      bar.appendChild(
-        headerButton(item.icon, item.title, () => false, (event: Event) => {
-          event.stopPropagation();
-          fire({ kind: 'global', action: item.action });
-        })
-      );
-    }
-    if (options.filters === true) {
-      bar.appendChild(
-        headerButton('search', translate('Filter'), showFilters, (event: Event) => {
-          event.stopPropagation();
-          showFilters.set(!showFilters());
-        })
-      );
-    }
-    return bar;
+    const host: HTMLElement = document.createElement('div');
+    host.className = 'weave-extra-table__header-actions';
+    bar = host;
+    // The element is permanent; its CONTENTS are not. One effect re-fills it whenever the resolved
+    // list changes — an action added at runtime, one whose `visible` turned true, a role that
+    // arrived with the session. Per-control effects are stopped on the way out: they were created
+    // here rather than under a Weave owner, so nothing else would ever tear them down, and a bar
+    // rebuilt a dozen times would otherwise leave a dozen live effects writing to detached nodes.
+    effect(() => {
+      const items: readonly GlobalAction[] = globalActionList();
+      const stops: (() => void)[] = [];
+      host.replaceChildren(...items.map((item) => headerControl(item, stops)));
+      return (): void => {
+        for (const stop of stops) stop();
+      };
+    });
+    return host;
   };
 
   /**
-   * One header control. Built as DOM rather than composed from `<Button>` because an icon button
-   * here is a 26px square — the component's padding and min-height would have to be fought back
-   * down anyway.
+   * One control in the header bar.
+   *
+   * A custom `render` is handed straight through — it owns its own reactivity, exactly as a cell
+   * does. Otherwise this builds the button as DOM rather than composing `<Button>`, because an icon
+   * button here is a 26px square and the component's padding and min-height would have to be fought
+   * back down anyway.
    *
    * With no icon it falls back to the title as TEXT. An `<Icon>` given a name the registry does not
    * hold renders nothing at all, and a row of blank squares is indistinguishable from a broken
    * toolbar — which is exactly what a mistyped or simply absent icon name produced here.
    */
-  const headerButton = (
-    icon: string | undefined,
-    title: string,
-    active: () => boolean,
-    onClick: (event: Event) => void
-  ): HTMLElement => {
-    const button: HTMLElement = document.createElement('button');
+  const headerControl = (item: GlobalAction, stops: (() => void)[]): Node => {
+    const send = (data?: unknown): void => {
+      // The reserved name toggles the row it names, and still reports: a caller that persists its
+      // grid state, or logs what was opened, learns about this the same way it learns about
+      // everything else. One way out, including for the controls the plugin supplies itself.
+      if (item.action === FILTER_ACTION) showFilters.set(!showFilters());
+      fire({ kind: 'global', action: item.action, data });
+    };
+
+    if (item.render) {
+      return asNode(item.render({ action: item.action, api, fire: send }));
+    }
+
+    const title: string = titleOf(item);
+    const icon: string | undefined = item.icon;
+    const button: HTMLButtonElement = document.createElement('button');
     button.type = 'button';
     const base: string = 'weave-extra-table__header-action';
     button.title = title;
     button.setAttribute('aria-label', title);
     if (icon) button.appendChild(asNode(Icon({ name: icon })));
     else button.appendChild(document.createTextNode(title));
-    // The pressed state is an effect, not a value read at build time: this button outlives every
+    // Pressed and disabled are effects, not values read at build time: this button outlives every
     // render of the header it sits in, so anything read once would freeze on the day it was made.
-    effect(() => {
-      const on: boolean = active();
-      button.className = [base, icon ? '' : `${base}--text`, on ? 'is-active' : ''].filter(Boolean).join(' ');
-      button.setAttribute('aria-pressed', String(on));
+    stops.push(
+      effect(() => {
+        const on: boolean = item.active ? item.active() : false;
+        const off: boolean = item.disabled ? item.disabled() : false;
+        button.className = [base, icon ? '' : `${base}--text`, on ? 'is-active' : ''].filter(Boolean).join(' ');
+        button.setAttribute('aria-pressed', String(on));
+        button.disabled = off;
+      })
+    );
+    button.addEventListener('click', (event: Event) => {
+      event.stopPropagation();
+      send();
     });
-    button.addEventListener('click', onClick);
     return button;
   };
 
@@ -534,6 +643,46 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
 
   const titleOf = (item: { title?: string; translate?: boolean; action: string }): string =>
     item.translate && item.title ? translate(item.title) : (item.title ?? item.action);
+
+  /**
+   * The table-wide actions, resolved.
+   *
+   * Three sources, one list: what the options declared (read reactively, so a getter can change the
+   * set), what was added afterwards through `addGlobalAction`, and the filter toggle the plugin
+   * contributes itself. Merging them here — rather than at the point each is rendered — is what
+   * lets an added action land BETWEEN two declared ones, and what lets a declared `filter` action
+   * replace the built-in instead of sitting next to a duplicate of it.
+   *
+   * `visible` is applied here, in the list, rather than inside each control: an action that turns
+   * invisible has to leave the bar, and a control cannot remove itself from a parent it does not
+   * own. Everything that only changes how a control LOOKS — `active`, `disabled` — is read inside
+   * that control's own effect instead, so toggling the filter row does not rebuild the bar.
+   */
+  const declaredActions: () => readonly GlobalAction[] =
+    typeof options.globalActions === 'function'
+      ? options.globalActions
+      : (): readonly GlobalAction[] => options.globalActions ?? [];
+
+  const addedActions: Signal<{ action: GlobalAction; at?: GlobalActionPlacement }[]> = signal<
+    { action: GlobalAction; at?: GlobalActionPlacement }[]
+  >([]);
+
+  const globalActionList = computed<GlobalAction[]>(() => {
+    const list: GlobalAction[] = [...declaredActions()];
+
+    for (const entry of addedActions()) {
+      const anchor: string | undefined = entry.at?.before ?? entry.at?.after;
+      const at: number = anchor ? list.findIndex((item) => item.action === anchor) : -1;
+      if (at < 0) list.push(entry.action);
+      else list.splice(entry.at?.before ? at : at + 1, 0, entry.action);
+    }
+
+    if (options.filters === true && !list.some((item) => item.action === FILTER_ACTION)) {
+      list.push({ action: FILTER_ACTION, icon: 'search', title: translate('Filter'), active: showFilters });
+    }
+
+    return list.filter((item) => roleOk(item.roles) && (!item.visible || item.visible()));
+  });
 
   const columns = computed<TableColumn<TRow>[]>(() => {
     const off: Set<string> = new Set(effectiveHidden());
@@ -601,23 +750,21 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     const rowActions: readonly TableAction<TRow>[] = (options.actions ?? []).filter(
       (item) => item.showIn !== 'menu' && roleOk(item.roles)
     );
-    const headerActions: readonly { action: string; icon?: string; title: string }[] = (
-      options.globalActions ?? []
-    )
-      .filter((item) => roleOk(item.roles))
-      .map((item) => ({ action: item.action, icon: item.icon, title: titleOf(item) }));
-    const hasHeaderControls: boolean = headerActions.length > 0 || options.filters === true;
-    // The trailing column now earns its place from EITHER end: per-row actions in the body, or the
+    // Read reactively: the column has to APPEAR when the first global action is added to a grid
+    // that had none, and widen when the bar grows. Both cost a re-render of the header, which is
+    // why nothing that merely changes a control's appearance is read here.
+    const headerCount: number = globalActionList().length;
+    // The trailing column earns its place from EITHER end: per-row actions in the body, or the
     // table-wide ones in its header. Either alone is reason enough for the column to exist.
-    if (rowActions.length > 0 || hasHeaderControls) {
+    if (rowActions.length > 0 || headerCount > 0) {
       out.push({
         key: '__actions',
         // Built once and handed back on every render: a header cell is mounted ONCE, because
         // `<Table>` keys its header by column and the key does not change when a control inside it
         // does. A freshly built bar would be discarded, which is why the filter toggle appeared dead
-        // — it flipped the signal and the DOM kept the old button. See `headerBar` below.
-        header: (): Node => headerBar(headerActions),
-        width: Math.max(48, Math.max(rowActions.length, headerActions.length + 1) * 34),
+        // — it flipped the signal and the DOM kept the old button. See `headerBar` above.
+        header: (): Node => headerBar(),
+        width: options.actionsColumnWidth ?? Math.max(48, Math.max(rowActions.length, headerCount) * 34),
         sticky: options.stickyActions === false ? undefined : (options.stickyActions ?? 'end'),
         cell: (row: TRow): Node => {
           const box: HTMLElement = document.createElement('div');
@@ -682,11 +829,28 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
       report('load');
     },
     preferences,
-    globalActions: computed(() =>
-      (options.globalActions ?? [])
-        .filter((item) => roleOk(item.roles))
-        .map((item) => ({ action: item.action, icon: item.icon, title: titleOf(item) }))
+    globalActions: computed<GlobalActionView[]>(() =>
+      globalActionList().map((item) => ({
+        action: item.action,
+        icon: item.icon,
+        title: titleOf(item),
+        disabled: item.disabled ? item.disabled() : false,
+        active: item.active ? item.active() : false,
+      }))
     ),
+    addGlobalAction: (action: GlobalAction, at?: GlobalActionPlacement): (() => void) => {
+      const entry: { action: GlobalAction; at?: GlobalActionPlacement } = { action, at };
+      addedActions.set([...addedActions(), entry]);
+      // Identity, not name: two calls may legitimately add the same action name — a mode that
+      // re-adds its control before the previous owner has torn down — and removing by name would
+      // take the wrong one.
+      return (): void => {
+        addedActions.set(addedActions().filter((item) => item !== entry));
+      };
+    },
+    removeGlobalAction: (action: string): void => {
+      addedActions.set(addedActions().filter((item) => item.action.action !== action));
+    },
     menuActions: (row: TRow) =>
       (options.actions ?? [])
         .filter((item) => item.showIn !== 'row' && roleOk(item.roles))

@@ -19,7 +19,7 @@
  * bundled and type-checked, at the cost of a rebuild to change a column.
  */
 
-import { computed, signal, onMount, type Computed, type Signal } from '@weave-framework/runtime';
+import { computed, effect, signal, onMount, type Computed, type Signal } from '@weave-framework/runtime';
 import Table from '@weave-framework/ui/table';
 import Button from '@weave-framework/ui/button';
 import Checkbox from '@weave-framework/ui/checkbox';
@@ -30,7 +30,9 @@ import {
   tableRows,
   columnsPanel,
   enumsFromList,
+  FILTER_ACTION,
   type ColumnConfig,
+  type GlobalAction,
   type EnumTables,
   type TableActionEvent,
   type TablePluginApi,
@@ -100,6 +102,10 @@ export interface TablePageContext {
   status: () => string;
   log: () => LogEntry[];
   clearLog: () => void;
+  busy: () => boolean;
+  extraAdded: () => boolean;
+  toggleExtra: () => void;
+  toggleBusy: () => void;
   menuColumns: () => ResolvedColumn[];
   isOn: (column: ResolvedColumn) => boolean;
   toggle: (column: ResolvedColumn) => void;
@@ -124,6 +130,11 @@ export function setup(): TablePageContext {
   const enums: Signal<EnumTables> = signal<EnumTables>({});
   const all: DocumentRow[] = makeRows(248);
   let seq: number = 0;
+  /** Stands in for a request in flight — the state a header action normally greys out for. */
+  const busy: Signal<boolean> = signal<boolean>(false);
+  /** The disposer for the action added at runtime; null when it is not in the bar. */
+  let dropExtra: (() => void) | null = null;
+  const extraAdded: Signal<boolean> = signal<boolean>(false);
 
   const record = (kind: string, detail: string): void => {
     seq += 1;
@@ -139,12 +150,34 @@ export function setup(): TablePageContext {
     formatDate: (value: unknown): string =>
       new Date(value as number).toISOString().slice(0, 16).replace('T', ' '),
 
-    // No icon on Reload on purpose: the built-in set has no refresh glyph, and a button that falls
-    // back to its label beats a blank square.
-    globalActions: [
-      { action: 'reload', title: 'Reload' },
-      { action: 'export', icon: 'cloud-download', title: 'Export' },
+    /**
+     * A getter, not an array: the set itself is allowed to change.
+     *
+     * `Export` is greyed while the page pretends to be busy, and the last entry is not a button at
+     * all — it is a live count, which is the case a fixed `{ action, icon, title }` list cannot
+     * express. No icon on `Reload` on purpose: the built-in set has no refresh glyph, and a button
+     * that falls back to its label beats a blank square.
+     */
+    globalActions: (): GlobalAction[] => [
+      { action: 'reload', title: 'Reload', disabled: (): boolean => busy() },
+      { action: 'export', icon: 'cloud-download', title: 'Export', disabled: (): boolean => busy() },
+      {
+        action: 'count',
+        render: (): Node => {
+          const box: HTMLElement = document.createElement('span');
+          box.className = 'grid__badge';
+          const text: Text = document.createTextNode('');
+          // A live node, for the same reason a cell has to be one: this is built once, when the
+          // bar is filled, and never asked again.
+          effect(() => {
+            text.nodeValue = String(matched());
+          });
+          box.append(text);
+          return box;
+        },
+      },
     ],
+    actionsColumnWidth: 168,
     actions: [
       { action: 'open', icon: 'eye', title: 'Open document' },
       { action: 'reprocess', icon: 'package', title: 'Reprocess', visible: (row) => row.isReprocessable },
@@ -281,6 +314,31 @@ export function setup(): TablePageContext {
     log,
     clearLog: (): void => {
       log.set([]);
+    },
+    busy,
+    /**
+     * Adding a control to a grid that is already on screen.
+     *
+     * The disposer is what is held, not the name — this is the shape a real caller has, where an
+     * action belongs to a mode or a loaded record and has to leave with it. `before` puts it in
+     * front of the filter toggle rather than at the end, which is the point of anchoring at all.
+     */
+    toggleExtra: (): void => {
+      if (dropExtra) {
+        dropExtra();
+        dropExtra = null;
+        extraAdded.set(false);
+        return;
+      }
+      dropExtra = grid.addGlobalAction(
+        { action: 'archive', icon: 'package', title: 'Archive', disabled: (): boolean => busy() },
+        { before: FILTER_ACTION }
+      );
+      extraAdded.set(true);
+    },
+    extraAdded,
+    toggleBusy: (): void => {
+      busy.set(!busy());
     },
     menuColumns: (): ResolvedColumn[] => grid.allColumns(),
     isOn: (column: ResolvedColumn): boolean => !(grid.preferences().hidden ?? []).includes(column.name),
