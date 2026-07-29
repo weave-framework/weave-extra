@@ -29,6 +29,9 @@ Each bucket's README states its layout and rules.
 |---|---|
 | `plugins/table` | [docs/table-plugin.md](docs/table-plugin.md) — column configuration, cell types, actions, filters, selection, paging, and the rules a cell must follow |
 
+Live counterparts run in the examples app (`pnpm run examples`): **Table recipes** is one grid per
+feature with its own source underneath; **Table plugin** is the same thing assembled.
+
 ## Requirements
 
 `@weave-framework/runtime` and `@weave-framework/ui` (>= 2.1) are **peer** dependencies — this package

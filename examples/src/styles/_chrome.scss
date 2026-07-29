@@ -464,6 +464,39 @@ $topbar-h: var(--weave-toolbar-height, 52px);
   outline-offset: -2px;
 }
 
+/* ── Table recipes: the bits the per-feature demos render ── */
+
+// A cell that is an element rather than a string — the "chip" recipe.
+.pill {
+  display: inline-flex;
+  align-items: center;
+  block-size: 18px;
+  padding: 0 8px;
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--fg-soft);
+  font-size: 11px;
+}
+
+.pill--on {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+// The preferences object, shown as it comes out of onPreferencesChange.
+.recipe-prefs {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg-soft);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
 // A global action that renders its own control — here a live count of the matching rows, to show
 // that the bar is not limited to buttons.
 .grid__badge {

@@ -1,0 +1,234 @@
+<article>
+  <h1>Table recipes</h1>
+  <p class="lead">
+    One feature per section. Each grid below is configured for exactly that feature and nothing else,
+    over the same eight rows, and each snippet is complete — copy a block and it runs.
+  </p>
+  <p>
+    The <a href="#table">Table plugin</a> page is the opposite of this one: everything at once, the way
+    a real screen uses it. That shape is right for judging whether the parts belong together and wrong
+    for learning any one of them. The written reference is <code>docs/table-plugin.md</code>.
+  </p>
+
+  <h2>1. The smallest grid that works</h2>
+  <p>
+    Columns in, <code>&lt;Table&gt;</code> props out. Nothing is on by default — no filters, no
+    selection, no paging, no actions. <code>formatDate</code> is what a <code>timestamp</code> column
+    calls; without one, values are stringified.
+  </p>
+  <Demo>
+    <!-- #region recipe-minimal -->
+    <Table columns={{ minimal.columns() }} dataSource={{ items }} trackBy={{ trackItem }}
+           sort={{ minimal.sort() }} onSort={{ minimal.onSort }} ariaLabel="Minimal" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="recipe-minimal" />
+
+  <h2>2. A cell type of your own</h2>
+  <p>
+    Register a renderer against a name and any column may ask for it by <code>type</code>. Anything the
+    column entry carries beyond the base keys — <code>currency</code> here — arrives at the cell as
+    <code>column.options</code>, untouched. A Weave component works in the same slot with no wrapper;
+    these two are plain functions because there is nothing to compose.
+  </p>
+  <Demo>
+    <!-- #region recipe-cells -->
+    <Table columns={{ cells.columns() }} dataSource={{ items }} trackBy={{ trackItem }}
+           ariaLabel="Custom cells" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="recipe-cells" />
+
+  <h2>3. Row actions — buttons, menu, or only the menu</h2>
+  <p>
+    One array, two renderings. <strong>Right-click a row</strong> for the menu.
+    <code>visible</code> drops an action for rows that do not qualify (<strong>Send</strong> is only on
+    the ready ones), <code>disabled</code> renders it inert (<strong>Lock</strong>), and
+    <code>showIn: 'menu'</code> keeps one out of the row whatever the table-wide setting says
+    (<strong>Delete</strong>).
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ toggleActionsPlacement }}>
+      @if (actionsPlacement() === 'both') { Move them all into the menu } @else { Bring the buttons back }
+    </Button>
+    <span class="demo-note">actionsIn: <code>{{ actionsPlacement() }}</code> · last: {{ actionsLast() }}</span>
+  </div>
+  <Demo>
+    <!-- #region recipe-actions -->
+    <div use:tableRows={{ actions.rowEvents }}>
+      <Table columns={{ actions.columns() }} dataSource={{ items }} trackBy={{ trackItem }}
+             ariaLabel="Row actions" />
+    </div>
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="recipe-actions" />
+
+  <h2>4. Global actions</h2>
+  <p>
+    The table-wide controls live in the grid's own header, not on a strip above it. The list is a
+    getter and every predicate is a getter, so an action can grey out, appear and go pressed without
+    the grid being rebuilt. The last entry is not a button at all — an action may render its own
+    control, and that one counts the ready rows.
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ toggleGlobalBusy }}>
+      @if (globalBusy()) { Stop pretending to be busy } @else { Pretend a request is running }
+    </Button>
+    <Button variant="ghost" on:click={{ toggleGlobalExtra }}>
+      @if (globalExtra()) { Remove the added action } @else { Add one at runtime }
+    </Button>
+    <span class="demo-note">last: {{ globalLast() }}</span>
+  </div>
+  <Demo>
+    <!-- #region recipe-global -->
+    <Table columns={{ global.columns() }} dataSource={{ items }} trackBy={{ trackItem }}
+           ariaLabel="Global actions" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="recipe-global" />
+
+  <h2>5. Filters</h2>
+  <p>
+    A control per column, in a second <code>&lt;thead&gt;</code> row, so the boxes line up with their
+    columns whatever the widths are. Type and press <kbd>Enter</kbd>; emptying a box applies at once.
+    <strong>Amount</strong> sets <code>searchDisabled</code> and gets none.
+  </p>
+  <p>
+    The plugin filters nothing itself — it reports a query. This page plays the server, which is
+    exactly where your own fetch would go.
+  </p>
+  <Demo>
+    <!-- #region recipe-filters -->
+    <Table columns={{ filters.columns() }} dataSource={{ filterRows }} trackBy={{ trackItem }}
+           headerRow={{ filters.headerRow() }} ariaLabel="Filters"
+           emptyText="Nothing matches these filters" />
+    <!-- #endregion -->
+  </Demo>
+  <p class="demo-note">query: <code>{{ filterQuery() }}</code></p>
+  <CodeTabs id="recipe-filters" />
+
+  <h2>6. Selection — checkbox and click, one set</h2>
+  <p>
+    Click selects one, <kbd>Ctrl</kbd> (<kbd>Cmd</kbd>) adds or removes one, <kbd>Shift</kbd> extends
+    from the last row touched, and the checkbox does its own thing without disturbing the rest. The
+    anchor does not move on a <kbd>Shift</kbd>-click, so a range can be stretched and shrunk without
+    starting over.
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ selection.clearSelection }}>Clear</Button>
+    <span class="demo-note">{{ selectionNames() }}</span>
+  </div>
+  <Demo>
+    <!-- #region recipe-selection -->
+    <div use:tableRows={{ selection.rowEvents }}>
+      <Table columns={{ selection.columns() }} dataSource={{ items }} trackBy={{ trackItem }}
+             selectable={{ selection.selectable() }} selectionMode={{ selection.selectionMode() }}
+             selection={{ selection.selectionModel }} ariaLabel="Selection" />
+    </div>
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="recipe-selection" />
+
+  <h2>7. Pagination</h2>
+  <p>
+    <code>paginator()</code> returns <code>undefined</code> when there is nothing to draw — paging off,
+    cursor mode, or a total that has not arrived — so <code>&#64;if</code> is the whole of the decision.
+    Three rows a page here, to make it visible.
+  </p>
+  <Demo>
+    <!-- #region recipe-paging -->
+    <Table columns={{ paging.columns() }} dataSource={{ pageRows }} trackBy={{ trackItem }}
+           ariaLabel="Pagination" />
+    @let pages = paging.paginator();
+    @if (pages) {
+      <Paginator length={{ pages.length }} pageSize={{ pages.pageSize }} pageIndex={{ pages.pageIndex }}
+                 pageSizeOptions={{ pages.pageSizeOptions }} onPage={{ paging.onPage }} />
+    }
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="recipe-paging" />
+
+  <h2>8. The columns menu, and what it saves</h2>
+  <p>
+    <strong>Right-click a column header.</strong> Switch one off, or drag a grip to move it — a line
+    shows where it will land, and the grip works from the keyboard with <kbd>Space</kbd>, the arrows,
+    then <kbd>Space</kbd>. Drag a column edge to resize.
+  </p>
+  <p>
+    The panel's markup is yours; the <code>columnsPanel</code> action only adds the reordering, and it
+    reads the order from the DOM at drop time so what it reports is what is on screen.
+    <strong>Ready</strong> is <code>hideInMenu</code> — listed and movable, not switchable.
+    <code>secret</code> is <code>hidden</code> and appears nowhere.
+  </p>
+  <Demo>
+    <!-- #region recipe-columns -->
+    <div use:tableRows={{ columns.rowEvents }}>
+      <Table columns={{ columns.columns() }} dataSource={{ items }} trackBy={{ trackItem }}
+             columnWidths={{ columns.columnWidths() }} onColumnResize={{ columns.onColumnResize }}
+             resizableColumns ariaLabel="Columns" />
+
+      @if (columns.columnsOpen()) {
+        <div class="columns-panel" style={{ columnsPanelStyle() }} use:columnsPanel={{ columns.columnsPanel }}>
+          @for (column of columns.allColumns(); track column.name) {
+            <div class="columns-panel__row" data-column={{ column.name }}>
+              <span class="columns-panel__grip" data-column-handle tabindex="0"
+                    role="button" aria-label={{ 'Reorder ' + column.title }}>
+                <Icon name={{ 'grip-vertical' }} />
+              </span>
+              <Checkbox checked={{ columnsIsOn(column) }} disabled={{ column.availability !== 'toggleable' }}
+                        onChange={{ () => columns.toggleColumn(column.name) }} label={{ column.title }} />
+            </div>
+          }
+          <div class="columns-panel__foot">
+            <Button variant="ghost" on:click={{ columns.resetColumns }}>Reset to the file</Button>
+          </div>
+        </div>
+      }
+    </div>
+    <!-- #endregion -->
+  </Demo>
+  <p class="demo-note">onPreferencesChange gave:</p>
+  <pre class="recipe-prefs">{{ columnsPrefs() }}</pre>
+  <CodeTabs id="recipe-columns" />
+
+  <h2>9. Roles</h2>
+  <p>
+    One <code>checkRole</code>, checked in three places: columns, row actions, global actions. A column
+    the viewer has no role for is <em>dropped</em>, not hidden, so it cannot be switched back on from
+    the columns menu. Switch the role and both <strong>Secret</strong> and <strong>Purge</strong> come
+    and go.
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ toggleRole }}>Sign in as {{ roleName() === 'Viewer' ? 'Admin' : 'Viewer' }}</Button>
+    <span class="demo-note">role: <code>{{ roleName() }}</code></span>
+  </div>
+  <Demo>
+    <!-- #region recipe-roles -->
+    <div use:tableRows={{ roles.rowEvents }}>
+      <Table columns={{ roles.columns() }} dataSource={{ items }} trackBy={{ trackItem }}
+             ariaLabel="Roles" />
+    </div>
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="recipe-roles" />
+
+  <h2>10. Enums that arrive late</h2>
+  <p>
+    A column file ships with the application; its enum tables come from the server, reliably after the
+    first page of rows in at least some races. Read through a getter, a late arrival fills the cells
+    <em>and</em> the filter. Read once, that column stays blank for the life of the grid with nothing
+    reporting it — which is why the built-in <code>enum</code> cell is a live node rather than a string.
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ loadEnums }} disabled={{ enumsLoaded() }}>
+      @if (enumsLoaded()) { Loaded } @else { Load the enum tables }
+    </Button>
+  </div>
+  <Demo>
+    <!-- #region recipe-enums -->
+    <Table columns={{ enums.columns() }} dataSource={{ items }} trackBy={{ trackItem }}
+           headerRow={{ enums.headerRow() }} ariaLabel="Enums" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="recipe-enums" />
+</article>

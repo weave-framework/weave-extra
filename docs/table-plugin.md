@@ -3,6 +3,11 @@
 Drive a Weave `<Table>` from a column configuration, with cell types you supply as ordinary Weave
 components.
 
+> **Running examples.** Every section here has a live counterpart in the examples app —
+> `pnpm run examples`, then **Table recipes** (`#table-recipes`): one grid per feature, configured
+> for that feature and nothing else, with its own source underneath. **Table plugin** (`#table`) is
+> the same plugin assembled the way a real screen uses it.
+
 This is a **props factory, not a wrapper**. It does not render a table and it does not replace one.
 `<Table>` already owns sorting, selection, expansion, sticky columns and keyboard-accessible column
 resizing; wrapping it would mean re-exposing all of that and rotting the first time any of it

@@ -24,6 +24,7 @@ import InsidePage from '../pages/inside.js';
 import DockingPage from '../pages/docking.js';
 import BenchPage from '../pages/bench.js';
 import TablePage from '../pages/table.js';
+import TableRecipesPage from '../pages/table-recipes.js';
 
 const REPO_URL = 'https://github.com/weave-framework/weave-extra';
 
@@ -38,6 +39,7 @@ export const PAGES: PageEntry[] = [
   { id: 'inside', title: 'Inside a Split', group: 'Components' },
   { id: 'docking', title: 'Docking', group: 'Components' },
   { id: 'table', title: 'Table plugin', group: 'Plugins' },
+  { id: 'table-recipes', title: 'Table recipes', group: 'Plugins' },
   { id: 'bench', title: 'Rendering cost', group: 'Measurements' },
 ];
 
