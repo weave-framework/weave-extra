@@ -23,6 +23,12 @@ import { dataGrid } from '@weave-framework/extra/plugins/data-grid';
 
 Each bucket's README states its layout and rules.
 
+## Documentation
+
+| Extra | Reference |
+|---|---|
+| `plugins/table` | [docs/table-plugin.md](docs/table-plugin.md) — column configuration, cell types, actions, filters, selection, paging, and the rules a cell must follow |
+
 ## Requirements
 
 `@weave-framework/runtime` and `@weave-framework/ui` (>= 2.1) are **peer** dependencies — this package
@@ -43,6 +49,9 @@ pnpm run examples
 pnpm install
 pnpm run typecheck
 ```
+
+`pnpm run typecheck` (plain `tsc`) is the check that counts. `weave check` does not type-check this
+package's `src` — it reports no errors on a file containing an identifier that exists nowhere.
 
 ## License
 
