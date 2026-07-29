@@ -160,6 +160,14 @@ export interface TablePluginOptions<TRow> {
    * the rows it was given are a page from a server that has to do the filtering.
    */
   filters?: boolean;
+  /**
+   * Open the columns panel on a right-click anywhere in the header. Default true.
+   *
+   * A right-click rather than a toolbar button because that is where a grid's column controls have
+   * always been, and because the header cell you press is the one you are thinking about. Needs
+   * {@link rowEvents}, which is where the listener lives.
+   */
+  columnsMenu?: boolean;
   /** Filter controls by column type. Overrides the built-ins for that type. */
   filterTypes?: Record<string, FilterRenderer>;
   /** Turns the committed values into a query. Default: an OData `$filter` string. */
@@ -317,6 +325,8 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
   const hidden: Signal<string[] | null> = signal<string[] | null>(options.preferences?.hidden ?? null);
   const sort: Signal<SortState> = signal<SortState>(options.preferences?.sort ?? { active: null, direction: null });
   const filterValues: Signal<Record<string, unknown>> = signal<Record<string, unknown>>({});
+  const columnsOpen: Signal<boolean> = signal<boolean>(false);
+  const columnsAt: Signal<{ x: number; y: number }> = signal<{ x: number; y: number }>({ x: 0, y: 0 });
   const page: Signal<number> = signal<number>(0);
   const pageSize: Signal<number> = signal<number>(options.preferences?.pageSize ?? options.pageSize ?? 25);
   const widths: Signal<Record<string, number>> = signal<Record<string, number>>(options.preferences?.widths ?? {});
@@ -394,6 +404,25 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     });
   };
 
+  /**
+   * One header control. Built as DOM rather than composed from `<Button>` because it is created
+   * inside a header that re-renders on every column change, and an icon button here is a 26px
+   * square — the component's padding and min-height would have to be fought back down anyway.
+   */
+  const headerButton = (icon: string, title: string, active: boolean, onClick: (event: Event) => void): HTMLElement => {
+    const button: HTMLElement = document.createElement('button');
+    button.type = 'button';
+    button.className = active
+      ? 'weave-extra-table__header-action is-active'
+      : 'weave-extra-table__header-action';
+    button.title = title;
+    button.setAttribute('aria-label', title);
+    button.setAttribute('aria-pressed', String(active));
+    button.appendChild(asNode(Icon({ name: icon })));
+    button.addEventListener('click', onClick);
+    return button;
+  };
+
   const filterRenderers: Record<string, FilterRenderer> = {
     ...BUILT_IN_FILTERS,
     ...(options.filterTypes ?? {}),
@@ -447,6 +476,8 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     item.translate && item.title ? translate(item.title) : (item.title ?? item.action);
 
   const columns = computed<TableColumn<TRow>[]>(() => {
+    // Read this so the header's filter control re-renders pressed/unpressed when it is toggled.
+    showFilters();
     const off: Set<string> = new Set(effectiveHidden());
     const out: TableColumn<TRow>[] = [];
 
@@ -512,11 +543,47 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     const rowActions: readonly TableAction<TRow>[] = (options.actions ?? []).filter(
       (item) => item.showIn !== 'menu' && roleOk(item.roles)
     );
-    if (rowActions.length > 0) {
+    const headerActions: readonly { action: string; icon?: string; title: string }[] = (
+      options.globalActions ?? []
+    )
+      .filter((item) => roleOk(item.roles))
+      .map((item) => ({ action: item.action, icon: item.icon, title: titleOf(item) }));
+    const hasHeaderControls: boolean = headerActions.length > 0 || options.filters === true;
+    // The trailing column now earns its place from EITHER end: per-row actions in the body, or the
+    // table-wide ones in its header. Either alone is reason enough for the column to exist.
+    if (rowActions.length > 0 || hasHeaderControls) {
       out.push({
         key: '__actions',
-        header: '',
-        width: Math.max(48, rowActions.length * 40),
+        /**
+         * The table's own action area.
+         *
+         * These belong in the grid's header, not on a strip floating above it: reload, export, the
+         * filter toggle and the columns trigger act on THIS table, and a bar outside its frame reads
+         * as page furniture that happens to sit nearby. Putting them in the trailing sticky column
+         * also keeps them beside the per-row actions they are the table-wide counterpart of.
+         */
+        header: (): Node => {
+          const bar: HTMLElement = document.createElement('div');
+          bar.className = 'weave-extra-table__header-actions';
+          for (const item of headerActions) {
+            bar.appendChild(
+              headerButton(item.icon ?? 'circle', item.title, false, (event: Event) => {
+                event.stopPropagation();
+                fire({ kind: 'global', action: item.action });
+              })
+            );
+          }
+          if (options.filters === true) {
+            bar.appendChild(
+              headerButton('search', translate('Filter'), showFilters(), (event: Event) => {
+                event.stopPropagation();
+                showFilters.set(!showFilters());
+              })
+            );
+          }
+          return bar;
+        },
+        width: Math.max(48, Math.max(rowActions.length, headerActions.length + 2) * 34),
         sticky: 'end',
         cell: (row: TRow): Node => {
           const box: HTMLElement = document.createElement('div');
@@ -654,6 +721,15 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
       report('width');
     },
 
+    columnsOpen,
+    columnsMenuAt: (): { x: number; y: number } => columnsAt(),
+    toggleColumns: (): void => {
+      columnsOpen.set(!columnsOpen());
+    },
+    closeColumns: (): void => {
+      columnsOpen.set(false);
+    },
+
     columnsPanel: {
       onReorder: (names: string[]): void => {
         order.set(names);
@@ -665,6 +741,11 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     rowEvents: {
       onRowClick: (row: TRow): void => fire({ kind: 'row', gesture: 'click', row }),
       onRowDoubleClick: (row: TRow): void => fire({ kind: 'row', gesture: 'doubleclick', row }),
+      onHeaderContextMenu: (position: { x: number; y: number }): void => {
+        if (options.columnsMenu === false) return;
+        columnsAt.set(position);
+        columnsOpen.set(true);
+      },
       menuItems: (row: TRow) =>
         (options.actions ?? [])
           .filter((item) => item.showIn !== 'row' && roleOk(item.roles))

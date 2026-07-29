@@ -23,8 +23,11 @@ export const HANDLE_ATTR = 'data-column-handle';
 /** On the row being dragged. */
 export const DRAGGING_CLASS = 'is-dragging';
 
-/** On the row the dragged one would land before. */
+/** On the row the dragged one would land BEFORE. */
 export const DROP_TARGET_CLASS = 'is-drop-target';
+
+/** On the last row, when the dragged one would land after everything. */
+export const DROP_END_CLASS = 'is-drop-end';
 
 export interface ColumnsPanelOptions {
   /** Called with the full column order after a move. */
@@ -62,22 +65,31 @@ export function columnsPanel(host: HTMLElement, options: ColumnsPanelOptions): (
     },
   });
   /**
-   * Mark the lifted row and the gap it would drop into.
+   * Mark the lifted row and draw the gap it would drop into.
    *
    * Not decoration. `dropList` moves nothing until the drop commits, so without this a drag shows
-   * absolutely nothing between grabbing a row and releasing it — which reads as a control that does
-   * not work, whether or not the drop then succeeds. The state is reactive on the ref rather than
-   * an attribute the CDK sets, so it has to be read and applied here.
+   * nothing between grabbing a row and releasing it, and then the row appears somewhere the reader
+   * was never shown — which is worse than no feedback, because it reads as a random result.
+   *
+   * The index arithmetic is the part that has to be right. `overIndex` counts positions among the
+   * rows that are NOT being dragged, so indexing the full list with it is off by one for every
+   * downward drag — the line lands one row short of where the drop actually goes. Hence the
+   * filtered list, and the separate end marker for a drop after the last row, which has no row to
+   * draw a leading line on.
    */
   effect(() => {
     const active: number = ref.activeIndex();
     const over: number = ref.overIndex();
     const live: boolean = ref.dragging();
     const rows: Element[] = [...host.querySelectorAll(`[${COLUMN_ATTR}]`)];
-    rows.forEach((rowEl, index) => {
-      rowEl.classList.toggle(DRAGGING_CLASS, live && index === active);
-      rowEl.classList.toggle(DROP_TARGET_CLASS, live && index === over && index !== active);
-    });
+    const others: Element[] = rows.filter((_, index) => index !== active);
+    for (const rowEl of rows) {
+      rowEl.classList.remove(DRAGGING_CLASS, DROP_TARGET_CLASS, DROP_END_CLASS);
+    }
+    if (!live || active < 0) return;
+    rows[active]?.classList.add(DRAGGING_CLASS);
+    if (over >= others.length) others[others.length - 1]?.classList.add(DROP_END_CLASS);
+    else others[over]?.classList.add(DROP_TARGET_CLASS);
   });
 
   return (): void => ref.destroy();

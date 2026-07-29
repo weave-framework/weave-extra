@@ -13,45 +13,6 @@
   <Demo>
     <!-- #region table-usage -->
     <div class="grid">
-      <div class="grid__toolbar">
-        @for (action of grid.globalActions(); track action.action) {
-          <Button variant="ghost" on:click={{ () => grid.fire({ kind: 'global', action: action.action }) }}>
-            <Icon name={{ action.icon }} />
-            {{ action.title }}
-          </Button>
-        }
-        <span class="grid__spacer"></span>
-        @if (grid.filtersEnabled()) {
-          <Button variant={{ grid.filtersVisible() ? 'primary' : 'ghost' }} on:click={{ grid.toggleFilters }}>
-            <Icon name={{ 'search' }} />
-            Filter
-          </Button>
-        }
-        <div class="grid__columns">
-          <Button variant={{ columnsOpen() ? 'primary' : 'ghost' }} on:click={{ toggleColumns }}>
-            <Icon name={{ 'columns-3' }} />
-            Columns
-          </Button>
-          @if (columnsOpen()) {
-            <div class="columns-panel" use:columnsPanel={{ grid.columnsPanel }}>
-              @for (column of menuColumns(); track column.name) {
-                <div class="columns-panel__row" data-column={{ column.name }}>
-                  <span class="columns-panel__grip" data-column-handle tabindex="0"
-                        role="button" aria-label={{ 'Reorder ' + column.title }}>
-                    <Icon name={{ 'grip-vertical' }} />
-                  </span>
-                  <Checkbox checked={{ isOn(column) }} disabled={{ !canToggle(column) }}
-                            onChange={{ () => toggle(column) }} label={{ column.title }} />
-                </div>
-              }
-              <div class="columns-panel__foot">
-                <Button variant="ghost" on:click={{ reset }}>Reset to the file</Button>
-              </div>
-            </div>
-          }
-        </div>
-      </div>
-
       <div use:tableRows={{ grid.rowEvents }}>
         <Table columns={{ grid.columns() }} dataSource={{ rows }} trackBy={{ (row: DocumentRow) => row.id }}
                sort={{ grid.sort() }} onSort={{ grid.onSort }} selectable
@@ -61,6 +22,24 @@
                onColumnResize={{ grid.onColumnResize }} resizableColumns
                emptyText="Nothing matches these filters" ariaLabel="Documents" />
       </div>
+
+      @if (grid.columnsOpen()) {
+        <div class="columns-panel" style={{ panelStyle() }} use:columnsPanel={{ grid.columnsPanel }}>
+          @for (column of menuColumns(); track column.name) {
+            <div class="columns-panel__row" data-column={{ column.name }}>
+              <span class="columns-panel__grip" data-column-handle tabindex="0"
+                    role="button" aria-label={{ 'Reorder ' + column.title }}>
+                <Icon name={{ 'grip-vertical' }} />
+              </span>
+              <Checkbox checked={{ isOn(column) }} disabled={{ !canToggle(column) }}
+                        onChange={{ () => toggle(column) }} label={{ column.title }} />
+            </div>
+          }
+          <div class="columns-panel__foot">
+            <Button variant="ghost" on:click={{ reset }}>Reset to the file</Button>
+          </div>
+        </div>
+      }
 
       @let pages = grid.paginator();
       <div class="grid__footer">
@@ -84,8 +63,9 @@
     applying it, which is exactly where your own fetch would go.
   </p>
   <p>
-    <strong>Columns</strong> switches a column off, or drags one to a new position; the grip also works
-    from the keyboard with <kbd>Space</kbd>, the arrows, then <kbd>Space</kbd>.
+    <strong>Right-click any column header</strong> for the columns panel: switch one off, or drag a
+    grip to move it — a line shows where it will land. The grip also works from the keyboard with
+    <kbd>Space</kbd>, the arrows, then <kbd>Space</kbd>.
     <strong>Reprocessable</strong> is <code>hideInMenu</code> — listed and movable, but not switchable.
     <code>rawState</code> is <code>hidden</code>, never rendered but still in the file because other
     things read it. <code>internalNote</code> asks for a role this viewer lacks, so it is in neither.

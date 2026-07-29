@@ -319,10 +319,8 @@ $topbar-h: var(--weave-toolbar-height, 52px);
 /* ── Table plugin: the columns panel ── */
 
 .columns-panel {
-  position: absolute;
-  inset-inline-end: 0;
-  inset-block-start: calc(100% + 4px);
-  z-index: 30;
+  position: fixed;
+  z-index: 60;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -353,15 +351,42 @@ $topbar-h: var(--weave-toolbar-height, 52px);
 }
 
 // The plugin sets these while a drag is live. `dropList` moves nothing until the drop commits, so
-// without them a drag shows nothing at all between grab and release — which reads as broken even
-// when the drop works, and is exactly how this looked before.
+// without them a drag shows nothing between grab and release and then the row appears somewhere
+// the reader was never shown — worse than no feedback, because it reads as a random result.
 .columns-panel__row.is-dragging {
-  opacity: 0.45;
+  opacity: 0.4;
   background: var(--surface);
+  outline: 1px dashed var(--field-line);
+  outline-offset: -1px;
 }
 
-.columns-panel__row.is-drop-target {
-  box-shadow: inset 0 2px 0 var(--accent);
+// The insertion line, drawn in the gap rather than on the row: a border on the row itself reads as
+// "this row is selected", and what is being shown is a position between two of them.
+.columns-panel__row.is-drop-target,
+.columns-panel__row.is-drop-end {
+  position: relative;
+}
+
+.columns-panel__row.is-drop-target::before,
+.columns-panel__row.is-drop-end::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  block-size: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.columns-panel__row.is-drop-target::before {
+  inset-block-start: -2px;
+}
+
+.columns-panel__row.is-drop-end::after {
+  inset-block-end: -2px;
+}
+
+.columns-panel__grip:active {
+  cursor: grabbing;
 }
 
 .columns-panel__grip {

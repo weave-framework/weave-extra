@@ -50,6 +50,8 @@ export interface RowEventOptions<TRow> {
   /** Items for the row's right-click menu. Re-read on every open, so it can depend on the row. */
   menuItems?: (row: TRow) => MenuItem[];
   onMenuSelect?: (value: string, row: TRow) => void;
+  /** A right-click on a HEADER cell. Given the pointer position, for anchoring a panel. */
+  onHeaderContextMenu?: (position: { x: number; y: number }) => void;
 }
 
 /**
@@ -71,6 +73,17 @@ export function tableRows<TRow>(host: HTMLElement, options: RowEventOptions<TRow
   // Registered BEFORE the context menu below, so by the time that opens, `menuRow` is the row the
   // pointer was actually over — same event, same phase, registration order decides.
   const onContextMenu = (event: MouseEvent): void => {
+    const target: Element | null = event.target instanceof Element ? event.target : null;
+    if (target?.closest('thead')) {
+      // A header right-click belongs to the COLUMNS, not to a row. `stopImmediatePropagation`
+      // rather than `stopPropagation`: the row menu is bound to this same element, so only halting
+      // the remaining listeners HERE keeps it from opening over the header as well.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      menuRow = null;
+      options.onHeaderContextMenu?.({ x: event.clientX, y: event.clientY });
+      return;
+    }
     menuRow = rowFromEvent<TRow>(event);
   };
 

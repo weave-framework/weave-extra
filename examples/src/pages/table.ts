@@ -105,8 +105,7 @@ export interface TablePageContext {
   toggle: (column: ResolvedColumn) => void;
   canToggle: (column: ResolvedColumn) => boolean;
   reset: () => void;
-  columnsOpen: () => boolean;
-  toggleColumns: () => void;
+  panelStyle: () => string;
   /**
    * Returned from `setup()`, not merely exported: a `use:` action resolves from the setup context,
    * where a capitalised component tag resolves from the module's exports. Exporting it compiles
@@ -120,7 +119,6 @@ export function setup(): TablePageContext {
   const configs: Signal<ColumnConfig[]> = signal<ColumnConfig[]>([]);
   const status: Signal<string> = signal<string>('loading…');
   const log: Signal<LogEntry[]> = signal<LogEntry[]>([]);
-  const columnsOpen: Signal<boolean> = signal<boolean>(false);
   // Empty at first, on purpose: this is the race a real application has, where the enums come over
   // the network and can land after the first page of rows.
   const enums: Signal<EnumTables> = signal<EnumTables>({});
@@ -286,9 +284,12 @@ export function setup(): TablePageContext {
     toggle: (column: ResolvedColumn): void => grid.toggleColumn(column.name),
     canToggle: (column: ResolvedColumn): boolean => column.availability === 'toggleable',
     reset: (): void => grid.resetColumns(),
-    columnsOpen: (): boolean => columnsOpen(),
-    toggleColumns: (): void => {
-      columnsOpen.set(!columnsOpen());
+    // Anchored to the right-click. Clamped so a menu opened near the bottom of the window is not
+    // drawn off the end of it.
+    panelStyle: (): string => {
+      const at: { x: number; y: number } = grid.columnsMenuAt();
+      const top: number = Math.min(at.y, Math.max(8, window.innerHeight - 360));
+      return `left:${at.x}px; top:${top}px`;
     },
     tableRows,
     columnsPanel,
