@@ -1007,7 +1007,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
             const disabled: boolean = item.disabled ? item.disabled(row) : false;
             const button: Node = Button(
               { variant: 'icon', label: titleOf(item), disabled },
-              { default: (): unknown => (item.icon ? Icon({ name: item.icon }) : document.createTextNode(titleOf(item))) }
+              { default: (): Node => (item.icon ? Icon({ name: item.icon }) : document.createTextNode(titleOf(item))) }
             ) as Node;
             if (!disabled) {
               button.addEventListener('click', (event: Event) => {
@@ -1115,7 +1115,8 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
         return render({
           column: resolved,
           value: (): unknown => filterValues()[resolved.name],
-          enums: enumTables(),
+          // The getter itself, not a snapshot — enum tables routinely arrive after this row exists.
+          enums: enumTables,
           api,
           commit: (next: unknown): void => {
             const merged: Record<string, unknown> = { ...filterValues() };

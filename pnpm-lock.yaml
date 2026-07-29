@@ -9,17 +9,17 @@ importers:
   .:
     devDependencies:
       '@weave-framework/cli':
-        specifier: ^2.1.0
-        version: 2.1.0
+        specifier: ^2.2.0
+        version: 2.2.0
       '@weave-framework/compiler':
-        specifier: ^2.1.0
-        version: 2.1.0(typescript@5.9.3)
+        specifier: ^2.2.0
+        version: 2.2.0(typescript@5.9.3)
       '@weave-framework/runtime':
-        specifier: ^2.1.0
-        version: 2.1.0
+        specifier: ^2.2.0
+        version: 2.2.0
       '@weave-framework/ui':
-        specifier: ^2.1.0
-        version: 2.1.0
+        specifier: ^2.2.0
+        version: 2.2.0
       sass:
         specifier: ^1.101.0
         version: 1.102.0
@@ -267,19 +267,19 @@ packages:
     resolution: {integrity: sha512-7FNeNl8NCE7aINx7WXiKQrPYZWC/hvrTsmk6zmxbI7LTXE7hVek/n8AfVgpe2y82zl3w0HvCHN0bVKMBoJcC0w==}
     engines: {node: '>= 10.0.0'}
 
-  '@weave-framework/check@2.1.0':
-    resolution: {integrity: sha512-13/JsBKDun3OhxqrucY81MvAEag7G/BFJCdKs8kRux3hKcE/pK1Et+lPcv+9Fn9TyMYcsgW0vTT9Cvqmrw/Jjw==}
+  '@weave-framework/check@2.2.0':
+    resolution: {integrity: sha512-csUR7+Wiuz7okfg8obVcdX0DUpkJzyZY9F//XcmBambJV0HVzToy5V95a0bqfmZiXhYzdEOuDHycoNXtcN/Lng==}
     engines: {node: '>=18'}
     peerDependencies:
       typescript: ^5.7.0
 
-  '@weave-framework/cli@2.1.0':
-    resolution: {integrity: sha512-KA5BfBb4TaB8O4AYPLr5rN6Ll0XREtfPN+EF5hBUnVWr03OeCgJdAfpXog7d5rfFPAKhao5EvtwuCg5qk1emmA==}
+  '@weave-framework/cli@2.2.0':
+    resolution: {integrity: sha512-Bx49nQQkwsHA5aSbMOIoTY8APyPOd7HYGPjjKC/l51leZI045xqGJoviZv7QwCEovncv4HvPP9GlSu23UUSOgw==}
     engines: {node: '>=18'}
     hasBin: true
 
-  '@weave-framework/compiler@2.1.0':
-    resolution: {integrity: sha512-lodA6fb9tmtd2k6OBnTE+3UnM1sJTKsM0PAb4U+jMISfR6ugH8aMD/Ykpw+tfEf7auLP0ZDxvtmGEgzkMmBOTw==}
+  '@weave-framework/compiler@2.2.0':
+    resolution: {integrity: sha512-SqRmzVd37H9rjhLuL09WC1YkT3ZDjWU+adhgB3y28NhZ8TV5iwencN3L3uVk0eE8+MliSVYg4d/cl9vem/L/DA==}
     engines: {node: '>=18'}
     peerDependencies:
       typescript: ^5.7.0
@@ -287,21 +287,21 @@ packages:
       typescript:
         optional: true
 
-  '@weave-framework/mcp@2.1.0':
-    resolution: {integrity: sha512-4wZeZYQZtAjuK0nPLqY5xb8GwRvHOGYn1Wj8l9ux2Nx3uyCWeAJiyR4g4Ny0KMeJ4b39DBcQMTUCWUwYZBpJhA==}
+  '@weave-framework/mcp@2.2.0':
+    resolution: {integrity: sha512-D/lJhl+zpY65TRjgHcWy2sDrv6DYNrlfEpJCEFHzgJJa5t1XWUWNjL/4oSMPBi4s16HF1vU60DMmX/rAbF/ZOw==}
     engines: {node: '>=18'}
     hasBin: true
 
-  '@weave-framework/router@2.1.0':
-    resolution: {integrity: sha512-pzR8T+0S1/d15HEKp69INvK4XJCsCLY4OugsYf580ZZ0z8bhCCfJHN0R0r9N8j+RLsmzhhOdoe2sp/MByvACsw==}
+  '@weave-framework/router@2.2.0':
+    resolution: {integrity: sha512-b/PI6cDm6gnvLVjrhbwL1+/OndoS47LIY1r+Qv9gI/I6bb+O9ZkZvN5ABGZHeii5aumEHPaTfD+9KuGMqVa3Vg==}
     engines: {node: '>=18'}
 
-  '@weave-framework/runtime@2.1.0':
-    resolution: {integrity: sha512-AIlYfZi0AO1jSq1fcG5RfzkEsMgCHQM5/wZIMqEKr4n6dhYLstYh0Vs+zXyP5OxypIkqfDMXD/dcPftcadlHrA==}
+  '@weave-framework/runtime@2.2.0':
+    resolution: {integrity: sha512-HOAR3sc5DTCa6zODeyF64RrdNDah2F/lfaDqLZBYi43CxTk8PZcTTAFTbScnerdb9RnKycojGnTVEz8TVnpY6Q==}
     engines: {node: '>=18'}
 
-  '@weave-framework/ui@2.1.0':
-    resolution: {integrity: sha512-UQdas8t+8MAhgn85K4SsmVlRD2R10OfE0iGtiCX4kLFCYWHSIRHiljoT9oc+gaIs/8IPu8VODzmbeW+1j8o6kA==}
+  '@weave-framework/ui@2.2.0':
+    resolution: {integrity: sha512-1eKO9q33KKdcaBzfbhnNOqEQltDwHXjtQ62WmMpfI3fdS6RIVQleKHfpmZTtt+8Bm2yV2CnhtaRJLtJYeBCxNQ==}
     engines: {node: '>=18'}
 
   chokidar@5.0.0:
@@ -490,40 +490,40 @@ snapshots:
       '@parcel/watcher-win32-x64': 2.6.0
     optional: true
 
-  '@weave-framework/check@2.1.0(typescript@5.9.3)':
+  '@weave-framework/check@2.2.0(typescript@5.9.3)':
     dependencies:
-      '@weave-framework/compiler': 2.1.0(typescript@5.9.3)
+      '@weave-framework/compiler': 2.2.0(typescript@5.9.3)
       typescript: 5.9.3
 
-  '@weave-framework/cli@2.1.0':
+  '@weave-framework/cli@2.2.0':
     dependencies:
-      '@weave-framework/mcp': 2.1.0(typescript@5.9.3)
+      '@weave-framework/mcp': 2.2.0(typescript@5.9.3)
       esbuild: 0.25.12
       typescript: 5.9.3
     optionalDependencies:
       sass: 1.102.0
 
-  '@weave-framework/compiler@2.1.0(typescript@5.9.3)':
+  '@weave-framework/compiler@2.2.0(typescript@5.9.3)':
     optionalDependencies:
       typescript: 5.9.3
 
-  '@weave-framework/mcp@2.1.0(typescript@5.9.3)':
+  '@weave-framework/mcp@2.2.0(typescript@5.9.3)':
     dependencies:
-      '@weave-framework/check': 2.1.0(typescript@5.9.3)
-      '@weave-framework/compiler': 2.1.0(typescript@5.9.3)
-      '@weave-framework/router': 2.1.0
+      '@weave-framework/check': 2.2.0(typescript@5.9.3)
+      '@weave-framework/compiler': 2.2.0(typescript@5.9.3)
+      '@weave-framework/router': 2.2.0
     transitivePeerDependencies:
       - typescript
 
-  '@weave-framework/router@2.1.0':
+  '@weave-framework/router@2.2.0':
     dependencies:
-      '@weave-framework/runtime': 2.1.0
+      '@weave-framework/runtime': 2.2.0
 
-  '@weave-framework/runtime@2.1.0': {}
+  '@weave-framework/runtime@2.2.0': {}
 
-  '@weave-framework/ui@2.1.0':
+  '@weave-framework/ui@2.2.0':
     dependencies:
-      '@weave-framework/runtime': 2.1.0
+      '@weave-framework/runtime': 2.2.0
 
   chokidar@5.0.0:
     dependencies:

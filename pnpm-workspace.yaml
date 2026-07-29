@@ -6,3 +6,11 @@
 allowBuilds:
   esbuild: true
   '@parcel/watcher': false
+minimumReleaseAgeExclude:
+  - '@weave-framework/check@2.2.0'
+  - '@weave-framework/cli@2.2.0'
+  - '@weave-framework/compiler@2.2.0'
+  - '@weave-framework/mcp@2.2.0'
+  - '@weave-framework/router@2.2.0'
+  - '@weave-framework/runtime@2.2.0'
+  - '@weave-framework/ui@2.2.0'

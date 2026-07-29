@@ -37,8 +37,15 @@ export interface FilterProps {
   /** Apply a value for this column. Pass `undefined` or `''` to clear it. */
   commit: (value: unknown) => void;
   api: CellApi;
-  /** Enum tables, for a type that resolves values against one. */
-  enums?: EnumTables;
+  /**
+   * Enum tables, read LIVE — for a type that resolves values against one.
+   *
+   * A getter for the same reason the enum CELL is a live node: the tables come over the network and
+   * routinely land after the filter row has been rendered. Read once, an enum filter built before
+   * they arrived holds an empty option list forever — and `<Select>` refuses to open with no
+   * options, so the control is not merely stale, it is dead.
+   */
+  enums?: () => EnumTables;
 }
 
 /** A filter control. Return `null` for a column that should have none. */
@@ -108,11 +115,32 @@ function textFilter(props: FilterProps, type: string): Node {
   return node;
 }
 
-/** A list to pick one value from — the control for booleans and enums. */
-function selectFilter(props: FilterProps, options: Option[]): Node {
+/**
+ * A list to pick one value from — the control for booleans and enums.
+ *
+ * No type argument, and no option accessors — both for the same reason.
+ *
+ * `setup` is generic, but the compiler emits the DEFAULT export as
+ * `(props: Parameters<typeof setup>[0], slots?) => Node`, and `Parameters<…>` of an uninstantiated
+ * generic resolves its parameter to `unknown` — not to the declared default. So `Select<Option>(…)`
+ * has nothing to instantiate and is a compile error, and `optionValue: (option: Option) => …` does
+ * not fit `(item: unknown) => …` either. Recorded as W-8.
+ *
+ * The accessors are optional and their defaults read `item.value` and `item.label`, which is exactly
+ * what `Option` is — so dropping them changes nothing at runtime and costs no cast. That is the whole
+ * workaround: build options in the shape `<Select>` already assumes.
+ */
+function selectFilter(props: FilterProps, options: () => Option[]): Node {
   return asNode(
-    Select<Option>({
-      options,
+    Select({
+      /**
+       * A getter. `<Select>` reads `props.options` reactively — and refuses to open at all while the
+       * list is empty — so an enum filter built before its table arrived would be a control that
+       * looks fine and does nothing when pressed.
+       */
+      get options(): Option[] {
+        return options();
+      },
       /**
        * A getter, and a string.
        *
@@ -128,8 +156,6 @@ function selectFilter(props: FilterProps, options: Option[]): Node {
         const current: unknown = props.value();
         return current == null || current === '' ? undefined : String(current);
       },
-      optionValue: (option: Option): string => option.value,
-      optionLabel: (option: Option): string => option.label,
       class: FILTER_CLASS,
       label: `Filter ${props.column.title}`,
       clearable: true,
@@ -145,17 +171,16 @@ const text: FilterRenderer = (props: FilterProps): Node => textFilter(props, 'te
 const numeric: FilterRenderer = (props: FilterProps): Node => textFilter(props, 'number');
 
 const boolean: FilterRenderer = (props: FilterProps): Node =>
-  selectFilter(props, [
+  selectFilter(props, (): Option[] => [
     { value: 'true', label: props.api.t('True') },
     { value: 'false', label: props.api.t('False') },
   ]);
 
 const enumeration: FilterRenderer = (props: FilterProps): Node => {
   const name: string = props.column.options.enum as string;
-  const table = props.enums?.[name] ?? [];
-  return selectFilter(
-    props,
-    table.map((entry) => ({
+  // Resolved on every read, not once: the table may not exist yet when this control is built.
+  return selectFilter(props, (): Option[] =>
+    (props.enums?.()[name] ?? []).map((entry) => ({
       value: String(entry.value),
       label: entry.displayName ?? entry.name ?? String(entry.value),
     }))

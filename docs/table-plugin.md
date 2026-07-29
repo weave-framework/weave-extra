@@ -1301,8 +1301,10 @@ deliberately with a probe. Use `tsc`:
 npx tsc --noEmit -p tsconfig.json
 ```
 
-Under a linked Weave checkout it also reports two `has no default export` lines for
-`@weave-framework/ui/*`; those are the link, not your code.
+Against the published packages that runs clean. Under a *linked* Weave checkout it drowns in
+`has no default export` for every `@weave-framework/ui/*` import, because the compiler synthesizes
+those defaults and plain `tsc` cannot see them — and filtering that noise out hides real errors
+underneath it. If you must link, do not trust the filtered output.
 
 ### 20.5 Sizing the actions column
 

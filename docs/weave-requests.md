@@ -1,12 +1,13 @@
 # Requests for `@weave-framework`
 
 Findings from building `@weave-framework/extra` that belong in the framework rather than around it.
-Each one is reproducible against `@weave-framework/runtime` / `@weave-framework/ui` 2.1.0.
+W-4 … W-7 were reproduced against 2.1.0 and shipped in **2.2.0**; this package now installs that
+release from npm rather than linking a local checkout. W-8 is open against 2.2.0.
 
 W-1 … W-3 were reported earlier and applied (`c10be506`, `d69a8f77`, `d1b7c6b0`). This file starts at
 W-4.
 
-**Status: all four are applied locally and verified against this package.**
+**Status: W-4 … W-7 are released in 2.2.0 and verified against this package from npm. W-8 is open.**
 
 | | fix | weave commit |
 |---|---|---|
@@ -14,6 +15,7 @@ W-4.
 | W-5 | a component's synthesized default returns `Node` | `45e49bdc` |
 | W-6 | `Table` — a second header row | `ac43c6ff` |
 | W-7 | `Table` — a virtual body | `4962a963` |
+| W-8 | a generic component's synthesized default loses its type parameter | open |
 
 One more was needed to consume them: `e502f448` (compiler — a comment between the pieces of a split
 template is not a non-static template). Without it the published CLI cannot parse the new `Table`
@@ -236,3 +238,55 @@ viewport's worth — roughly 20–40 — which is about 5× under the observed 1
 That is headroom, not a repair. The threshold is a stack budget that moves with the browser and with
 how many frames each row costs, and every other long list of `ref`-bearing components stays exposed.
 **W-4 should be fixed on its own merits; W-7 is worth doing for the 482 ms.**
+
+---
+
+## W-8 — a generic component's synthesized default export loses its type parameter
+
+`@weave-framework/ui` 2.2.0, `select.d.ts`. `setup` is generic and its props are generic, but the
+emitted default is not:
+
+```ts
+export declare function setup<T = { value: string; label: string }>(props: SelectProps<T>): SelectContext<T>;
+declare const _weaveDefault: (props: Parameters<typeof setup>[0], slots?: Record<string, () => Node>) => Node;
+export default _weaveDefault;
+```
+
+`Parameters<typeof setup>` on an *uninstantiated* generic resolves `T` to `unknown` — not to the
+declared default. Two consequences at the call site, both in this package's filter row:
+
+```ts
+Select<Option>({ … })
+// Expected 0 type arguments, but got 1.  (ts2558)
+
+Select({ options, optionValue: (option: Option): string => option.value })
+// Type '(option: Option) => string' is not assignable to type '(item: unknown) => string'.  (ts2322)
+```
+
+So an imperative caller cannot name the option type at all, and any accessor prop has to be written
+against `unknown` and cast back. Inside a template the same component is fine, because the compiler
+does not go through the default's declared type.
+
+**What it should emit** — carry the parameter onto the default:
+
+```ts
+declare const _weaveDefault: <T = { value: string; label: string }>(
+  props: SelectProps<T>,
+  slots?: Record<string, () => Node>
+) => Node;
+```
+
+This is the same class of gap as W-5 (which fixed the *return* type of the synthesized default);
+this one is its type parameters.
+
+**Workaround here**: build options in the shape `<Select>` already assumes
+(`{ value: string; label: string }`) and omit the accessors entirely — their defaults read exactly
+those fields, so nothing changes at runtime and no cast is needed. That works for the filter row and
+would not for a caller whose options are a domain object.
+
+### Found while upgrading
+
+Worth recording: this only surfaced when the package stopped linking a local checkout. Under the
+link, `@weave-framework/ui/*` resolved to source whose default export is synthesized by the compiler
+and therefore absent from plain `tsc`'s view — every import raised *"has no default export"*, and
+those errors were being filtered out as link noise. They were hiding two real ones underneath.

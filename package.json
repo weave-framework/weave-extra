@@ -86,14 +86,14 @@
     "verify:authorship": "node tools/verify-authorship.mjs"
   },
   "peerDependencies": {
-    "@weave-framework/runtime": ">=2.1.0 <3",
-    "@weave-framework/ui": ">=2.1.0 <3"
+    "@weave-framework/runtime": ">=2.2.0 <3",
+    "@weave-framework/ui": ">=2.2.0 <3"
   },
   "devDependencies": {
-    "@weave-framework/cli": "^2.1.0",
-    "@weave-framework/compiler": "^2.1.0",
-    "@weave-framework/runtime": "^2.1.0",
-    "@weave-framework/ui": "^2.1.0",
+    "@weave-framework/cli": "^2.2.0",
+    "@weave-framework/compiler": "^2.2.0",
+    "@weave-framework/runtime": "^2.2.0",
+    "@weave-framework/ui": "^2.2.0",
     "sass": "^1.101.0",
     "typescript": "^5.7.0"
   }
