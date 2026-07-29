@@ -56,6 +56,27 @@ pnpm run typecheck
 `pnpm run typecheck` (plain `tsc`) is the check that counts. `weave check` does not type-check this
 package's `src` — it reports no errors on a file containing an identifier that exists nowhere.
 
+## Publishing
+
+```bash
+pnpm run build
+pnpm publish --access public
+```
+
+**`pnpm publish`, not `npm publish`.** The manifest's `exports`, `main` and `types` point at
+`src/*.ts` so the repo and the examples resolve TypeScript directly; `publishConfig` swaps them for
+`dist/*.js` at publish time. pnpm applies those overrides — npm 11.17 does **not**. Published with
+npm, the tarball ships `dist` (per `files`) while its manifest still points at `src`, so every
+consumer import resolves to a file that is not in the package.
+
+Verify before publishing, rather than trusting it:
+
+```bash
+pnpm pack --pack-destination /tmp && tar -xzOf /tmp/weave-framework-extra-*.tgz package/package.json
+```
+
+The `exports` in that output must read `./dist/…`.
+
 ## License
 
 MIT © Aidas Josas
