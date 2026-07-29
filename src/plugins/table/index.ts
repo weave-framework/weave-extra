@@ -14,6 +14,8 @@ export type {
   TablePluginApi,
   TablePluginOptions,
   ColumnChangeReason,
+  PageChangeReason,
+  PageMode,
 } from './table-plugin.js';
 
 export type {

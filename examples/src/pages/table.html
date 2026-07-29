@@ -76,11 +76,31 @@
              sort={{ grid.sort() }} onSort={{ grid.onSort }} selectable
              virtual={{ grid.virtual() }} rowHeight={{ grid.rowHeight() }}
              overscan={{ grid.overscan() }} maxHeight={{ grid.maxHeight() }}
-             headerRow={{ grid.headerRow() }} ariaLabel="Documents" />
+             headerRow={{ grid.headerRow() }} columnWidths={{ grid.columnWidths() }}
+             onColumnResize={{ grid.onColumnResize }} resizableColumns
+             ariaLabel="Documents" />
     </div>
     <!-- #endregion -->
   </Demo>
   <CodeTabs id="table-usage" />
+
+  <p>
+    Rows carry classes from their own data — a failed or rejected document is tinted, a test
+    document is marked. Drag a column edge to resize; the width is kept in the same preferences as
+    the order and the visibility.
+  </p>
+
+  <h2>Pages</h2>
+  <p>
+    The grid holds one page. Moving reports the query for the next one — and changing a filter or
+    the sort sends the reader back to page one, because staying on page 7 of a result set that no
+    longer has seven pages is how a filter comes to look like it returned nothing.
+  </p>
+  @let pages = grid.paginator();
+  @if (pages) {
+    <Paginator length={{ pages.length }} pageSize={{ pages.pageSize }} pageIndex={{ pages.pageIndex }}
+               pageSizeOptions={{ pages.pageSizeOptions }} onPage={{ grid.onPage }} />
+  }
 
   <h2>What came back</h2>
   <p>

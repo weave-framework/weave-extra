@@ -28,6 +28,9 @@ import { markRow, type RowEventOptions } from './row-events.js';
 import { BUILT_IN_FILTERS, odataQuery, type FilterRenderer, type QueryBuilder } from './filters.js';
 import type { ColumnsPanelOptions } from './columns-panel.js';
 
+/** What a page of rows is asked for with. `offset` counts rows; `cursor` counts pages. */
+export type PageMode = 'offset' | 'cursor';
+
 /** See `CellComponent`: a compiled component is declared as returning `unknown`. */
 const asNode = (value: unknown): Node => value as Node;
 
@@ -56,9 +59,16 @@ export type TableActionEvent<TRow> =
   | { kind: 'row'; gesture: 'click' | 'doubleclick'; row: TRow }
   | { kind: 'global'; action: string }
   | { kind: 'filter'; filters: Readonly<Record<string, unknown>>; query: unknown }
+  | { kind: 'page'; page: number; pageSize: number; query: unknown; reason: PageChangeReason }
   | { kind: 'columns'; reason: ColumnChangeReason; preferences: TablePreferences };
 
-export type ColumnChangeReason = 'visibility' | 'order' | 'reset' | 'load';
+export type ColumnChangeReason = 'visibility' | 'order' | 'reset' | 'width' | 'load';
+
+/**
+ * Why the page moved. `filter` and `sort` matter to a caller: the page reset itself, so the request
+ * about to be made is for page 1 of a different result set, not the next page of the old one.
+ */
+export type PageChangeReason = 'navigate' | 'size' | 'filter' | 'sort';
 
 /**
  * Persisted column state. Transport-neutral by design: the plugin never names a storage, it asks for
@@ -71,6 +81,9 @@ export interface TablePreferences {
   /** Column names switched off. */
   hidden?: string[];
   sort?: SortState;
+  /** Column widths in px, by column name. */
+  widths?: Record<string, number>;
+  pageSize?: number;
 }
 
 export interface TablePluginOptions<TRow> {
@@ -103,6 +116,30 @@ export interface TablePluginOptions<TRow> {
 
   /** Make every column resizable unless its config says otherwise. */
   resizableColumns?: boolean;
+
+  /**
+   * Ask for rows a page at a time.
+   *
+   * `offset` builds `$top`/`$skip` and needs a {@link total} to know how many pages there are.
+   * `cursor` builds `pageNumber` and asks {@link hasNextPage} whether another exists — for an API
+   * that will not count its results, which is a good reason not to make `total` mandatory.
+   */
+  pagination?: boolean;
+  pageMode?: PageMode;
+  pageSize?: number;
+  pageSizeOptions?: number[];
+  /** Total row count, read reactively. Required by the paginator in `offset` mode. */
+  total?: () => number | undefined;
+  /** Whether another page exists, read reactively. Used by `cursor` mode. */
+  hasNextPage?: () => boolean;
+
+  /**
+   * A class (or classes) for a row, from its data — a failed document tinted red, a new one marked.
+   *
+   * Applied to the `<tr>` through the same marked cell row events use, so it needs {@link rowEvents}
+   * to be on. `<Table>` exposes no per-row class of its own.
+   */
+  rowClass?: (row: TRow) => string | string[] | undefined;
 
   /**
    * Offer a filter control per column, in a second header row.
@@ -267,6 +304,9 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
   const hidden: Signal<string[] | null> = signal<string[] | null>(options.preferences?.hidden ?? null);
   const sort: Signal<SortState> = signal<SortState>(options.preferences?.sort ?? { active: null, direction: null });
   const filterValues: Signal<Record<string, unknown>> = signal<Record<string, unknown>>({});
+  const page: Signal<number> = signal<number>(0);
+  const pageSize: Signal<number> = signal<number>(options.preferences?.pageSize ?? options.pageSize ?? 25);
+  const widths: Signal<Record<string, number>> = signal<Record<string, number>>(options.preferences?.widths ?? {});
   const showFilters: Signal<boolean> = signal<boolean>(options.filtersVisible === true);
 
   const effectiveOrder = (): string[] => order() ?? defaults().order;
@@ -280,11 +320,37 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     order: effectiveOrder(),
     hidden: effectiveHidden(),
     sort: sort(),
+    widths: widths(),
+    pageSize: pageSize(),
   }));
+
+  const pageQuery = computed<Record<string, unknown>>(() =>
+    (options.pageMode ?? 'offset') === 'cursor'
+      ? { pageNumber: page() + 1, itemsOnPage: pageSize() }
+      : { $top: pageSize(), $skip: page() * pageSize() }
+  );
+
+  const reportPage = (reason: PageChangeReason): void => {
+    fire({ kind: 'page', page: page(), pageSize: pageSize(), query: pageQuery(), reason });
+  };
+
+  /**
+   * Anything that changes WHICH rows match sends the reader back to page one.
+   *
+   * Staying on page 7 of a result set that no longer has seven pages is how a filter comes to look
+   * like it returned nothing. The reason travels with the event, so a caller can tell this apart
+   * from ordinary navigation.
+   */
+  const resetPage = (reason: PageChangeReason): void => {
+    if (!options.pagination || page() === 0) return;
+    page.set(0);
+    reportPage(reason);
+  };
 
   const reportFilters = (): void => {
     const values: Readonly<Record<string, unknown>> = filterValues();
     fire({ kind: 'filter', filters: values, query: buildQuery(values, base()) });
+    resetPage('filter');
   };
 
   const report = (reason: ColumnChangeReason): void => {
@@ -296,6 +362,25 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
   // The shared api has no row to speak of, so its `action` is the HEADER's channel. A cell never
   // sees this one: `apiFor` below rebinds `action` to the row and column it was built for, which is
   // what lets a cell say `api.action('open')` and have the consumer receive both.
+  /**
+   * Put a row's classes on its `<tr>`.
+   *
+   * Deferred by a microtask because the cell is built detached — `closest('tr')` finds nothing at
+   * creation time. Weave inserts the tree synchronously, so by the time this runs the row is
+   * mounted. One microtask per rendered row is cheaper than observing the body for mutations, and
+   * it runs exactly once per render rather than once per unrelated DOM change.
+   */
+  const applyRowClass = (element: Element, row: TRow): void => {
+    if (!options.rowClass) return;
+    const value: string | string[] | undefined = options.rowClass(row);
+    if (!value) return;
+    const names: string[] = (Array.isArray(value) ? value : value.split(' ')).filter(Boolean);
+    if (names.length === 0) return;
+    queueMicrotask(() => {
+      element.closest('tr')?.classList.add(...names);
+    });
+  };
+
   const filterRenderers: Record<string, FilterRenderer> = {
     ...BUILT_IN_FILTERS,
     ...(options.filterTypes ?? {}),
@@ -376,12 +461,14 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
             if (!carries) return content;
             if (content instanceof Element) {
               markRow(content, row);
+              applyRowClass(content, row);
               return content;
             }
             const carrier: HTMLElement = document.createElement('span');
             carrier.append(document.createTextNode(typeof content === 'string' ? content : ''));
             if (typeof content !== 'string') carrier.append(content);
             markRow(carrier, row);
+            applyRowClass(carrier, row);
             return carrier;
           }
           // A wrapper is only paid for by the columns that asked for one — in a real config that is a
@@ -400,7 +487,10 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
             cellApi.action(column.cellAction!.action, undefined, event);
           });
           box.append(control);
-          if (carries) markRow(box, row);
+          if (carries) {
+            markRow(box, row);
+            applyRowClass(box, row);
+          }
           return box;
         },
       });
@@ -448,6 +538,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     onSort: (next: SortState): void => {
       sort.set(next);
       report('order');
+      resetPage('sort');
     },
     toggleColumn: (name: string): void => {
       const column: ResolvedColumn | undefined = base().find((entry) => entry.name === name);
@@ -472,6 +563,8 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
       if (next.order) order.set(next.order);
       if (next.hidden) hidden.set(next.hidden);
       if (next.sort) sort.set(next.sort);
+      if (next.widths) widths.set(next.widths);
+      if (next.pageSize) pageSize.set(next.pageSize);
       report('load');
     },
     preferences,
@@ -523,6 +616,31 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
         });
       };
     },
+    page,
+    pageSize,
+    paginator: () => {
+      if (!options.pagination) return undefined;
+      const length: number | undefined = options.total?.();
+      if (length == null) return undefined; // cursor mode, or a total that has not arrived yet
+      return { length, pageSize: pageSize(), pageIndex: page(), pageSizeOptions: options.pageSizeOptions };
+    },
+    onPage: ({ pageIndex, pageSize: size }: { pageIndex: number; pageSize: number }): void => {
+      const sizeChanged: boolean = size !== pageSize();
+      pageSize.set(size);
+      // A bigger page makes the old index point somewhere else entirely, so a size change starts
+      // over rather than trying to keep the reader where they were.
+      page.set(sizeChanged ? 0 : pageIndex);
+      reportPage(sizeChanged ? 'size' : 'navigate');
+    },
+    pageQuery,
+    hasNextPage: (): boolean => options.hasNextPage?.() ?? false,
+
+    columnWidths: (): Record<string, number> => widths(),
+    onColumnResize: ({ key, width }: { key: string; width: number }): void => {
+      widths.set({ ...widths(), [key]: width });
+      report('width');
+    },
+
     columnsPanel: {
       onReorder: (names: string[]): void => {
         order.set(names);

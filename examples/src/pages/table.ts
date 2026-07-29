@@ -21,6 +21,7 @@ import Table from '@weave-framework/ui/table';
 import Button from '@weave-framework/ui/button';
 import Checkbox from '@weave-framework/ui/checkbox';
 import Icon from '@weave-framework/ui/icon';
+import Paginator from '@weave-framework/ui/paginator';
 import {
   tablePlugin,
   tableRows,
@@ -84,6 +85,7 @@ export interface LogEntry {
 
 export interface TablePageContext {
   Table: typeof Table;
+  Paginator: typeof Paginator;
   grid: TablePluginApi<DocumentRow>;
   data: Signal<DocumentRow[]>;
   status: () => string;
@@ -109,6 +111,8 @@ export function setup(): TablePageContext {
   const status: Signal<string> = signal<string>('loading…');
   const data: Signal<DocumentRow[]> = signal<DocumentRow[]>(rows());
   const log: Signal<LogEntry[]> = signal<LogEntry[]>([]);
+  // Stands in for what a server would report alongside a page.
+  const total: Signal<number> = signal<number>(248);
   let seq: number = 0;
 
   const record = (kind: string, detail: string): void => {
@@ -163,6 +167,21 @@ export function setup(): TablePageContext {
     // it holds are a page from a server, so a commit reports the query and the page is reloaded.
     filters: true,
 
+    // A page at a time. `total` is read reactively because it arrives WITH the rows -- a server
+    // reports how many matched only once it has run the query.
+    pagination: true,
+    pageSize: 25,
+    pageSizeOptions: [10, 25, 50],
+    total: (): number => total(),
+
+    // A class from the row's own data. Failed documents are tinted; test documents are marked.
+    rowClass: (row: DocumentRow): string[] => {
+      const names: string[] = [];
+      if (row.processingState === 'failed' || row.processingState === 'rejected') names.push('row--bad');
+      if (row.testIndicator) names.push('row--test');
+      return names;
+    },
+
     // One handler. Everything the grid can report arrives here, with the row in its original shape —
     // no transform step on the way out.
     onAction: (event: TableActionEvent<DocumentRow>): void => {
@@ -171,6 +190,7 @@ export function setup(): TablePageContext {
       else if (event.kind === 'row') record('row', `${event.gesture} · row ${event.row.id}`);
       else if (event.kind === 'global') record('global', event.action);
       else if (event.kind === 'filter') record('filter', String(event.query) || '(cleared)');
+      else if (event.kind === 'page') record('page', `${event.reason} \u00b7 ${JSON.stringify(event.query)}`);
       else record('columns', `${event.reason} · ${(event.preferences.hidden ?? []).length} hidden`);
     },
   });
@@ -201,6 +221,7 @@ export function setup(): TablePageContext {
 
   return {
     Table,
+    Paginator,
     grid,
     data,
     status,
