@@ -1,5 +1,6 @@
 [
-  { "name": "id", "title": "Id", "visible": true, "type": "number", "width": 80 },
+  { "name": "id", "title": "Id", "visible": true, "type": "number", "width": 110,
+    "cellAction": { "icon": "copy", "action": "copy-id", "tooltip": "Copy to clipboard" } },
   { "name": "documentFormat", "title": "Format", "visible": true, "type": "string", "width": 110 },
   { "name": "documentType", "title": "Type", "visible": true, "type": "string", "width": 110 },
   { "name": "sender", "title": "Sender", "visible": true, "type": "string", "width": 150 },
@@ -11,5 +12,6 @@
   { "name": "isReprocessable", "title": "Reprocessable", "visible": true, "type": "boolean", "hideInMenu": true, "width": 120, "align": "center" },
   { "name": "correlationId", "title": "Correlation id", "visible": false, "type": "string", "width": 220 },
   { "name": "priority", "title": "Priority", "visible": false, "type": "number", "width": 90 },
+  { "name": "internalNote", "title": "Internal note", "visible": true, "type": "string", "width": 160, "roles": ["Admin"] },
   { "name": "rawState", "hidden": true, "type": "string" }
 ]

@@ -63,6 +63,8 @@ export interface ResolvedColumn {
   align?: 'start' | 'center' | 'end';
   sortable: boolean;
   filterable: boolean;
+  /** A control appended to every cell in this column, if the config asked for one. */
+  cellAction?: { icon: string; action: string; tooltip?: string; color?: string };
   /** Everything else the JSON entry carried, untouched. */
   options: Readonly<Record<string, unknown>>;
 }

@@ -204,3 +204,40 @@ $topbar-h: var(--weave-toolbar-height, 52px);
   line-height: 1.25;
   color: var(--muted);
 }
+
+/* ── Table plugin: the control a column can append to its own cells ── */
+
+// Built as DOM by the plugin, so it carries no component scope and belongs here with the rest of the
+// global chrome. Revealed on hover or focus rather than always drawn: a copy button on every row of
+// an id column is a lot of ink for something wanted occasionally, and `:focus-visible` keeps it
+// reachable for anyone not using a mouse.
+.weave-extra-table__cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.weave-extra-table__cell-action {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  --weave-icon-size: 14px;
+}
+
+.weave-table__row:hover .weave-extra-table__cell-action,
+.weave-extra-table__cell-action:focus-visible {
+  opacity: 1;
+}
+
+.weave-extra-table__cell-action:hover {
+  color: var(--accent);
+}
+
+.weave-extra-table__actions {
+  display: inline-flex;
+  gap: 2px;
+}

@@ -121,6 +121,9 @@ export function setup(): TablePageContext {
         { value: 3, displayName: 'Acknowledged' },
       ],
     },
+    // Only an Admin sees the `internalNote` column. Denied here, so the column is DROPPED rather than
+    // hidden — a column nobody may see must not be switchable back on from the columns menu.
+    checkRole: (roles: string[]): boolean => roles.includes('Operator'),
     formatDate: (value: unknown): string =>
       new Date(value as number).toISOString().slice(0, 16).replace('T', ' '),
 

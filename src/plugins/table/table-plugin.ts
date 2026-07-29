@@ -25,6 +25,9 @@ import type { CellApi, CellRenderer, CellSource, ResolvedColumn } from './contra
 import { BUILT_IN_TYPES, resolveColumns, validateColumns, type ColumnConfig } from './columns.js';
 import { BUILT_IN_RENDERERS, NUMERIC_TYPES } from './renderers.js';
 
+/** See `CellComponent`: a compiled component is declared as returning `unknown`. */
+const asNode = (value: unknown): Node => value as Node;
+
 /** A row action. The same entry renders in the row and in the row's context menu. */
 export interface TableAction<TRow> {
   /** Identifier reported back through `onAction`. */
@@ -164,6 +167,8 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
 
   const knownTypes: string[] = [...new Set([...BUILT_IN_TYPES, ...Object.keys(options.cells ?? {})])];
 
+  const roleOk = (roles?: string[]): boolean => !roles || !options.checkRole || options.checkRole(roles);
+
   // Refused here rather than left to `<Table>`, which raises the same thing from inside its own setup
   // — deep in a render, and phrased in its own vocabulary. This fires while the grid is being
   // configured, where the option was actually written.
@@ -191,7 +196,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
   const base = computed<ResolvedColumn[]>(() => {
     const raw: readonly ColumnConfig[] = configs();
     validateColumns(raw, knownTypes);
-    return resolveColumns(raw, translate);
+    return resolveColumns(raw, translate, (roles: string[]) => roleOk(roles));
   });
 
   const defaults = computed<Required<Pick<TablePreferences, 'order' | 'hidden'>>>(() => ({
@@ -272,8 +277,6 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
       .map((entry) => entry.column);
   });
 
-  const roleOk = (roles?: string[]): boolean => !roles || !options.checkRole || options.checkRole(roles);
-
   const titleOf = (item: { title?: string; translate?: boolean; action: string }): string =>
     item.translate && item.title ? translate(item.title) : (item.title ?? item.action);
 
@@ -294,7 +297,26 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
         resizable: (column.options.resizable as boolean | undefined) ?? options.resizableColumns,
         cell: (row: TRow): Node | string => {
           const value: unknown = row[column.name];
-          return render({ value, row, column, api: apiFor(row, column, value) });
+          const cellApi: CellApi = apiFor(row, column, value);
+          const content: Node | string = render({ value, row, column, api: cellApi });
+          if (!column.cellAction) return content;
+          // A wrapper is only paid for by the columns that asked for one — in a real config that is a
+          // copy button on a single id column, not a tax on all 348.
+          const box: HTMLElement = document.createElement('span');
+          box.className = 'weave-extra-table__cell';
+          box.append(typeof content === 'string' ? document.createTextNode(content) : content);
+          const control: HTMLElement = document.createElement('button');
+          control.type = 'button';
+          control.className = 'weave-extra-table__cell-action';
+          if (column.cellAction.color) control.style.color = column.cellAction.color;
+          if (column.cellAction.tooltip) control.title = column.cellAction.tooltip;
+          control.setAttribute('aria-label', column.cellAction.tooltip ?? column.cellAction.action);
+          control.append(asNode(Icon({ name: column.cellAction.icon })));
+          control.addEventListener('click', (event: Event) => {
+            cellApi.action(column.cellAction!.action, undefined, event);
+          });
+          box.append(control);
+          return box;
         },
       });
     }

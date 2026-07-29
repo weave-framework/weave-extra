@@ -15,6 +15,22 @@
 
 import type { ColumnAvailability, ResolvedColumn } from './contract.js';
 
+/**
+ * A control appended to a cell, whatever that cell's type renders.
+ *
+ * One object rather than the four loose keys it replaces (`cellIcon`, `cellAction`,
+ * `cellActionTooltip`, `cellActionColor`): they only ever appear together, and without the icon the
+ * other three do nothing at all — which a flat shape cannot say and this one says by construction.
+ */
+export interface CellActionConfig {
+  icon: string;
+  /** Reported through `onAction` as `{ kind: 'cell', action }`. */
+  action: string;
+  /** Tooltip, or a key when the column sets `translate`. */
+  tooltip?: string;
+  color?: string;
+}
+
 /** Keys every column may carry, whatever its type. */
 export interface ColumnConfigBase {
   /** Field name in the row, and the column's stable id. */
@@ -41,6 +57,16 @@ export interface ColumnConfigBase {
   resizable?: boolean;
   /** Header tooltip, or a key when `translate` is set. */
   tooltip?: string;
+  /**
+   * Show this column only to a user holding one of these roles.
+   *
+   * Acts on its own. The configuration this replaces needed a second flag (`useRoles: true`) before
+   * `roles` did anything, so a column that named its roles and forgot the flag was visible to
+   * everyone — a permission that reads as set and is not.
+   */
+  roles?: string[];
+  /** A control appended to every cell in this column — a copy button, say. */
+  cellAction?: CellActionConfig;
 }
 
 export interface StringColumnConfig extends ColumnConfigBase {
@@ -135,6 +161,8 @@ const BASE_KEYS: readonly string[] = [
   'resizable',
   'tooltip',
   'type',
+  'roles',
+  'cellAction',
 ];
 
 function optionsOf(config: ColumnConfig): Record<string, unknown> {
@@ -183,15 +211,22 @@ export function validateColumns(configs: readonly ColumnConfig[], knownTypes: re
   }
 }
 
-/** Turn validated config into the resolved form the renderers read. `absent` columns are dropped. */
+/**
+ * Turn validated config into the resolved form the renderers read.
+ *
+ * `absent` columns are dropped, and so are columns the viewer has no role for — dropped rather than
+ * hidden, so a column nobody may see cannot be switched back on from the columns menu.
+ */
 export function resolveColumns(
   configs: readonly ColumnConfig[],
-  translate: (key: string, params?: Record<string, unknown>) => string
+  translate: (key: string, params?: Record<string, unknown>) => string,
+  canSee: (roles: string[]) => boolean = () => true
 ): ResolvedColumn[] {
   const out: ResolvedColumn[] = [];
   for (const config of configs) {
     const availability: ColumnAvailability = availabilityOf(config);
     if (availability === 'absent') continue;
+    if (config.roles && config.roles.length > 0 && !canSee(config.roles)) continue;
     out.push({
       name: config.name,
       type: config.type,
@@ -202,6 +237,15 @@ export function resolveColumns(
       align: config.align ? ALIGN[config.align] : undefined,
       sortable: config.sortdisabled !== true,
       filterable: config.searchDisabled !== true,
+      cellAction: config.cellAction
+        ? {
+            ...config.cellAction,
+            tooltip:
+              config.translate && config.cellAction.tooltip
+                ? translate(config.cellAction.tooltip)
+                : config.cellAction.tooltip,
+          }
+        : undefined,
       options: Object.freeze(optionsOf(config)),
     });
   }
