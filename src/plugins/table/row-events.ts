@@ -52,6 +52,15 @@ export interface RowEventOptions<TRow> {
   onMenuSelect?: (value: string, row: TRow) => void;
   /** A right-click on a HEADER cell. Given the pointer position, for anchoring a panel. */
   onHeaderContextMenu?: (position: { x: number; y: number }) => void;
+  /**
+   * Stop a Shift-click from starting a text selection in the body.
+   *
+   * Only for a grid that gives Shift a meaning of its own — extending a row range. The browser
+   * begins its own range on mousedown, so a grid that ranges with Shift would drag a blue smear
+   * across the rows it is selecting. Off by default: suppressing text selection in a table nobody
+   * asked to be selectable takes away an ordinary thing (copying a value out of a cell) for nothing.
+   */
+  preventTextSelection?: boolean;
 }
 
 /**
@@ -87,9 +96,18 @@ export function tableRows<TRow>(host: HTMLElement, options: RowEventOptions<TRow
     menuRow = rowFromEvent<TRow>(event);
   };
 
+  // Only the Shift case, and only over a row: an ordinary click still places a caret, and text in
+  // the header stays selectable.
+  const onMouseDown = (event: MouseEvent): void => {
+    if (!event.shiftKey) return;
+    if (rowFromEvent<TRow>(event) === null) return;
+    event.preventDefault();
+  };
+
   host.addEventListener('click', onClick);
   host.addEventListener('dblclick', onDoubleClick);
   host.addEventListener('contextmenu', onContextMenu);
+  if (options.preventTextSelection) host.addEventListener('mousedown', onMouseDown);
 
   let closeMenu: (() => void) | null = null;
   if (options.menuItems) {
@@ -110,6 +128,7 @@ export function tableRows<TRow>(host: HTMLElement, options: RowEventOptions<TRow
     host.removeEventListener('click', onClick);
     host.removeEventListener('dblclick', onDoubleClick);
     host.removeEventListener('contextmenu', onContextMenu);
+    host.removeEventListener('mousedown', onMouseDown);
     closeMenu?.();
   };
 }

@@ -12,6 +12,8 @@ export type {
   GlobalActionContext,
   GlobalActionPlacement,
   GlobalActionView,
+  RowSelectionOptions,
+  SelectionClick,
   TableAction,
   TableActionEvent,
   TablePreferences,

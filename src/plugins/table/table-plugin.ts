@@ -18,6 +18,7 @@
  */
 
 import { computed, effect, signal, type Computed, type Signal } from '@weave-framework/runtime';
+import { selectionModel, type SelectionModel } from '@weave-framework/ui/cdk';
 import type { TableColumn, SortState } from '@weave-framework/ui/table';
 import Button from '@weave-framework/ui/button';
 import Icon from '@weave-framework/ui/icon';
@@ -117,11 +118,57 @@ export interface GlobalActionPlacement {
   after?: string;
 }
 
+/** What a plain click on a row does to the selection. */
+export type SelectionClick = 'replace' | 'toggle' | 'none';
+
+/**
+ * Selecting rows by clicking them, not only through the checkbox column.
+ *
+ * The checkbox and the click are two different gestures for the same set, and both are wanted: a
+ * checkbox is deliberate and survives a mis-aimed pointer, a click is how every file manager and
+ * mail client on the machine already behaves. The modifiers follow that same convention, because a
+ * grid is not the place to teach someone a new one — plain click replaces, Ctrl (Cmd) adds and
+ * removes one, Shift extends a range from the last row touched.
+ */
+export interface RowSelectionOptions<TRow> {
+  /** `'multiple'` by default. `'single'` also drops the select-all box, which would mean nothing. */
+  mode?: 'single' | 'multiple';
+  /**
+   * What an unmodified click does. Default `'replace'`.
+   *
+   * `'toggle'` is for a grid whose selection is a set being assembled rather than a cursor — it
+   * makes every row behave like its own checkbox. `'none'` leaves plain clicks alone and keeps only
+   * the modified ones, for a grid where a click already means something else.
+   */
+  click?: SelectionClick;
+  /** Shift extends from the anchor. Default true; ignored in single mode. Needs {@link rows}. */
+  range?: boolean;
+  /** Ctrl (Cmd) adds and removes one row. Default true; ignored in single mode. */
+  additive?: boolean;
+  /**
+   * The rows as they are RENDERED, in display order — normally the same getter passed to
+   * `<Table dataSource>`.
+   *
+   * A range is a slice of what the reader can see, so it has to be resolved against the order on
+   * screen: sorted, filtered, and only the current page. The plugin holds no data of its own and
+   * cannot infer this, which is why `range` refuses to be on without it.
+   */
+  rows?: () => readonly TRow[];
+  /** Selected up-front. */
+  initial?: readonly TRow[];
+  /**
+   * Identity, when a row object is not stable — refetched pages hand back equal-but-different
+   * objects, and a selection compared by reference silently empties itself on every reload.
+   */
+  compareWith?: (a: TRow, b: TRow) => boolean;
+}
+
 /** Everything a table can report. One handler, one switch. */
 export type TableActionEvent<TRow> =
   | { kind: 'cell'; action: string; row: TRow; column: string; value: unknown; data?: unknown }
   | { kind: 'item'; action: string; row: TRow }
   | { kind: 'row'; gesture: 'click' | 'doubleclick'; row: TRow }
+  | { kind: 'selection'; rows: TRow[]; added: TRow[]; removed: TRow[] }
   | { kind: 'global'; action: string; data?: unknown }
   | { kind: 'filter'; filters: Readonly<Record<string, unknown>>; query: unknown }
   | { kind: 'page'; page: number; pageSize: number; query: unknown; reason: PageChangeReason }
@@ -278,6 +325,16 @@ export interface TablePluginOptions<TRow> {
   rowEvents?: boolean;
 
   /**
+   * Row selection, owned by the plugin so a click can drive it.
+   *
+   * `true` is the checkbox column on its own — what `<Table selectable>` already gives, but with the
+   * model held here so `selected()` and the reported changes come from the same place as everything
+   * else. An options object adds the pointer gestures, and those need {@link rowEvents}, since that
+   * is where the clicks arrive.
+   */
+  selection?: boolean | RowSelectionOptions<TRow>;
+
+  /**
    * Render only the rows in view instead of the whole page.
    *
    * Worth having as configuration rather than a default because it is a trade, not a free win. It
@@ -346,10 +403,52 @@ export interface TablePluginApi<TRow> {
   headerRow: () => ((column: TableColumn<TRow>) => Node | null) | undefined;
 
   /**
+   * Paging. `paginator()` returns `undefined` when there is nothing to draw — paging off, or a
+   * `cursor` grid, or a total that has not arrived — which is what makes `@if (pages)` the whole of
+   * the caller's decision.
+   */
+  page: Signal<number>;
+  pageSize: Signal<number>;
+  paginator: () =>
+    | { length: number; pageSize: number; pageIndex: number; pageSizeOptions?: number[] }
+    | undefined;
+  onPage: (event: { pageIndex: number; pageSize: number }) => void;
+  /** The current page as query parameters — `$top`/`$skip`, or `pageNumber`/`itemsOnPage`. */
+  pageQuery: Computed<Record<string, unknown>>;
+  hasNextPage: () => boolean;
+
+  /** Column widths, for `<Table columnWidths>` / `onColumnResize`. Persisted with the preferences. */
+  columnWidths: () => Record<string, number>;
+  onColumnResize: (event: { key: string; width: number }) => void;
+
+  /** The columns panel: whether it is open, and where the right-click that opened it landed. */
+  columnsOpen: Signal<boolean>;
+  columnsMenuAt: () => { x: number; y: number };
+  toggleColumns: () => void;
+  closeColumns: () => void;
+  /** Wiring for the `columnsPanel` action — `<div use:columnsPanel={{ grid.columnsPanel }}>`. */
+  columnsPanel: ColumnsPanelOptions;
+
+  /**
    * Wiring for the `tableRows` action — attach it to the element wrapping the grid:
    * `<div use:tableRows={{ grid.rowEvents }}><Table … /></div>`.
    */
   rowEvents: RowEventOptions<TRow>;
+
+  /**
+   * The selection, for `<Table selectable={{ … }} selectionMode={{ … }} selection={{ … }} />`.
+   *
+   * Handing `<Table>` a model rather than letting it build its own is what puts the checkbox and
+   * the click on the SAME set — two gestures, one selection. Note that `<Table>` only calls its own
+   * `onSelectionChange` for a model it made itself, so changes are reported here instead, through
+   * `onAction` like everything else.
+   */
+  selectable: () => boolean;
+  selectionMode: () => 'single' | 'multiple';
+  selectionModel: SelectionModel<TRow> | undefined;
+  /** The selected rows, read reactively. Empty when selection is off. */
+  selected: () => TRow[];
+  clearSelection: () => void;
 
   /**
    * Pass-throughs for `<Table>`. Getters rather than one object because a Weave template has no prop
@@ -379,8 +478,9 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
 
   const roleOk = (roles?: string[]): boolean => !roles || !options.checkRole || options.checkRole(roles);
 
+  const enumsOption: EnumTables | (() => EnumTables) | undefined = options.enums;
   const enumTables: () => EnumTables =
-    typeof options.enums === 'function' ? options.enums : (): EnumTables => options.enums ?? {};
+    typeof enumsOption === 'function' ? enumsOption : (): EnumTables => enumsOption ?? {};
 
   // Refused here rather than left to `<Table>`, which raises the same thing from inside its own setup
   // — deep in a render, and phrased in its own vocabulary. This fires while the grid is being
@@ -439,6 +539,104 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
 
   const fire = (event: TableActionEvent<TRow>): void => {
     options.onAction?.(event);
+  };
+
+  /**
+   * The selection, and the pointer gestures that drive it.
+   *
+   * `selection: true` is the checkbox column alone; an options object is what turns on clicking. The
+   * model lives here rather than inside `<Table>` so that both gestures act on one set — a checkbox
+   * tick and a Ctrl-click are the same operation arriving by different routes.
+   */
+  const gestures: RowSelectionOptions<TRow> | null =
+    typeof options.selection === 'object' ? options.selection : null;
+  const selectionOn: boolean = options.selection === true || gestures !== null;
+  const multipleSelection: boolean = gestures?.mode !== 'single';
+
+  // Refused at construction, where the option was written, rather than failing quietly at the first
+  // Shift-click — a range is a slice of the rows in DISPLAY order, and the plugin holds no rows.
+  if (gestures && multipleSelection && gestures.range !== false && !gestures.rows) {
+    throw new Error(
+      '@weave-framework/extra table: `selection.range` needs `selection.rows` — a Shift-click extends ' +
+        'across the rows as they are rendered, which only the caller knows. Pass the same getter you ' +
+        'give `<Table dataSource>`, or set `range: false`.'
+    );
+  }
+  if (gestures && options.rowEvents !== true) {
+    throw new Error(
+      '@weave-framework/extra table: selecting rows by clicking needs `rowEvents: true` — that is the ' +
+        'listener the clicks arrive on.'
+    );
+  }
+
+  let selection: SelectionModel<TRow> | undefined;
+  if (selectionOn) {
+    selection = selectionModel<TRow>({
+      multiple: multipleSelection,
+      initial: gestures?.initial ? [...gestures.initial] : undefined,
+      compareWith: gestures?.compareWith,
+      // Reported from here because `<Table>` only calls its own `onSelectionChange` for a model it
+      // built itself — hand it one and that callback is never wired. One way out either way.
+      onChange: (change): void => {
+        fire({
+          kind: 'selection',
+          rows: selection ? selection.selected() : [],
+          added: change.added,
+          removed: change.removed,
+        });
+      },
+    });
+  }
+
+  /** The row a Shift-click measures from — the last one touched without Shift. */
+  let anchor: TRow | null = null;
+
+  const sameRow: (a: TRow, b: TRow) => boolean = gestures?.compareWith ?? ((a, b): boolean => a === b);
+
+  /**
+   * A click on the row body.
+   *
+   * Ignores clicks on anything that is already a control. The checkbox especially: it is the other
+   * gesture for this same set, and letting a plain click through would wipe the selection the reader
+   * is assembling with it, on the very click that adds to it.
+   */
+  const selectOnClick = (row: TRow, event: MouseEvent): void => {
+    if (!selection || !gestures) return;
+    const target: Element | null = event.target instanceof Element ? event.target : null;
+    if (target?.closest('.weave-table__select, button, a, input, label, [role="button"]')) return;
+
+    const multiple: boolean = selection.multiple;
+    const additive: boolean = multiple && gestures.additive !== false && (event.ctrlKey || event.metaKey);
+    const ranged: boolean = multiple && gestures.range !== false && event.shiftKey;
+
+    if (ranged && anchor !== null) {
+      const list: readonly TRow[] = gestures.rows ? gestures.rows() : [];
+      const from: number = list.findIndex((entry) => sameRow(entry, anchor as TRow));
+      const to: number = list.findIndex((entry) => sameRow(entry, row));
+      if (from >= 0 && to >= 0) {
+        const span: TRow[] = list.slice(Math.min(from, to), Math.max(from, to) + 1);
+        // Ctrl+Shift adds the range to what is already selected; Shift alone replaces with it. And
+        // the anchor does NOT move, which is what lets a reader stretch and shrink one range by
+        // Shift-clicking around without starting over.
+        if (additive) selection.select(...span);
+        else selection.setSelection(...span);
+        return;
+      }
+      // An anchor that is no longer on the page — a filter changed under it, a page turned — falls
+      // through to an ordinary click rather than selecting nothing.
+    }
+
+    if (additive) {
+      selection.toggle(row);
+      anchor = row;
+      return;
+    }
+
+    const click: SelectionClick = gestures.click ?? 'replace';
+    if (click === 'none') return;
+    if (click === 'toggle') selection.toggle(row);
+    else selection.setSelection(row);
+    anchor = row;
   };
 
   const preferences = computed<TablePreferences>(() => ({
@@ -658,10 +856,9 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
    * own. Everything that only changes how a control LOOKS — `active`, `disabled` — is read inside
    * that control's own effect instead, so toggling the filter row does not rebuild the bar.
    */
+  const declared: readonly GlobalAction[] | (() => readonly GlobalAction[]) | undefined = options.globalActions;
   const declaredActions: () => readonly GlobalAction[] =
-    typeof options.globalActions === 'function'
-      ? options.globalActions
-      : (): readonly GlobalAction[] => options.globalActions ?? [];
+    typeof declared === 'function' ? declared : (): readonly GlobalAction[] => declared ?? [];
 
   const addedActions: Signal<{ action: GlobalAction; at?: GlobalActionPlacement }[]> = signal<
     { action: GlobalAction; at?: GlobalActionPlacement }[]
@@ -727,7 +924,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
           const box: HTMLElement = document.createElement('span');
           box.className = 'weave-extra-table__cell';
           box.append(typeof content === 'string' ? document.createTextNode(content) : content);
-          const control: HTMLElement = document.createElement('button');
+          const control: HTMLButtonElement = document.createElement('button');
           control.type = 'button';
           control.className = 'weave-extra-table__cell-action';
           if (column.cellAction.color) control.style.color = column.cellAction.color;
@@ -940,7 +1137,15 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     fire,
     api,
     rowEvents: {
-      onRowClick: (row: TRow): void => fire({ kind: 'row', gesture: 'click', row }),
+      // Selection first, then the report: a consumer's `onAction` for the click should be able to
+      // read `grid.selected()` and see the state the click just produced, not the one before it.
+      onRowClick: (row: TRow, event: MouseEvent): void => {
+        selectOnClick(row, event);
+        fire({ kind: 'row', gesture: 'click', row });
+      },
+      // Shift-clicking text starts a browser range selection, so a grid that ranges with Shift would
+      // paint half its rows blue on the way. Killed at mousedown, where it starts.
+      preventTextSelection: gestures !== null && multipleSelection && gestures.range !== false,
       onRowDoubleClick: (row: TRow): void => fire({ kind: 'row', gesture: 'doubleclick', row }),
       onHeaderContextMenu: (position: { x: number; y: number }): void => {
         if (options.columnsMenu === false) return;
@@ -957,6 +1162,14 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
             disabled: item.disabled ? item.disabled(row) : false,
           })),
       onMenuSelect: (action: string, row: TRow): void => fire({ kind: 'item', action, row }),
+    },
+    selectable: (): boolean => selectionOn,
+    selectionMode: (): 'single' | 'multiple' => (multipleSelection ? 'multiple' : 'single'),
+    selectionModel: selection,
+    selected: (): TRow[] => (selection ? selection.selected() : []),
+    clearSelection: (): void => {
+      selection?.clear();
+      anchor = null;
     },
     virtual: (): boolean => options.virtual === true,
     rowHeight: (): number | undefined => options.rowHeight,

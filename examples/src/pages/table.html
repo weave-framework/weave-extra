@@ -15,7 +15,9 @@
     <div class="grid">
       <div use:tableRows={{ grid.rowEvents }}>
         <Table columns={{ grid.columns() }} dataSource={{ rows }} trackBy={{ (row: DocumentRow) => row.id }}
-               sort={{ grid.sort() }} onSort={{ grid.onSort }} selectable
+               sort={{ grid.sort() }} onSort={{ grid.onSort }}
+               selectable={{ grid.selectable() }} selectionMode={{ grid.selectionMode() }}
+               selection={{ grid.selectionModel }}
                virtual={{ grid.virtual() }} rowHeight={{ grid.rowHeight() }}
                overscan={{ grid.overscan() }} maxHeight={{ grid.maxHeight() }}
                headerRow={{ grid.headerRow() }} columnWidths={{ grid.columnWidths() }}
@@ -44,6 +46,10 @@
       @let pages = grid.paginator();
       <div class="grid__footer">
         <span class="grid__count">{{ matched() }} matching</span>
+        @if (grid.selected().length > 0) {
+          <span class="grid__count">· {{ grid.selected().length }} selected</span>
+          <Button variant="ghost" on:click={{ grid.clearSelection }}>Clear</Button>
+        }
         <span class="grid__spacer"></span>
         @if (pages) {
           <Paginator length={{ pages.length }} pageSize={{ pages.pageSize }} pageIndex={{ pages.pageIndex }}
@@ -83,6 +89,13 @@
     <strong>Reprocessable</strong> is <code>hideInMenu</code> — listed and movable, but not switchable.
     <code>rawState</code> is <code>hidden</code>, never rendered but still in the file because other
     things read it. <code>internalNote</code> asks for a role this viewer lacks, so it is in neither.
+  </p>
+  <p>
+    <strong>Selecting</strong> works two ways on one set: the checkbox column, and the rows themselves.
+    A click selects one, <kbd>Ctrl</kbd> (<kbd>Cmd</kbd>) adds or removes one, <kbd>Shift</kbd> extends
+    from the last row touched — and the anchor stays put, so a range can be stretched and shrunk
+    without starting again. A Shift-range runs over the rows <em>as displayed</em>, so it respects the
+    filter, the sort and the page.
   </p>
   <p>
     <strong>Rows</strong> take a click, a double-click and a right-click menu, and carry classes from

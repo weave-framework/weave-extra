@@ -184,6 +184,18 @@ export function setup(): TablePageContext {
       { action: 'delete', icon: 'trash-2', title: 'Delete', showIn: 'menu' },
     ],
 
+    /**
+     * Both gestures, one set.
+     *
+     * `rows` is the same getter `<Table dataSource>` gets — a Shift-click extends across the rows as
+     * they are on screen, which after a filter, a sort and a page is nothing like the underlying
+     * array.
+     */
+    selection: {
+      rows: (): readonly DocumentRow[] => rows(),
+      compareWith: (a: DocumentRow, b: DocumentRow): boolean => a.id === b.id,
+    },
+
     virtual: true,
     rowHeight: 34,
     maxHeight: 360,
@@ -209,6 +221,8 @@ export function setup(): TablePageContext {
       else if (event.kind === 'item') record('item', `${event.action} · row ${event.row.id}`);
       else if (event.kind === 'row') record('row', `${event.gesture} · row ${event.row.id}`);
       else if (event.kind === 'global') record('global', event.action);
+      else if (event.kind === 'selection')
+        record('selection', `${event.rows.length} selected (+${event.added.length} −${event.removed.length})`);
       else if (event.kind === 'filter') record('filter', String(event.query) || '(cleared)');
       else if (event.kind === 'page') record('page', `${event.reason} · ${JSON.stringify(event.query)}`);
       else record('columns', `${event.reason} · ${(event.preferences.hidden ?? []).length} hidden`);
