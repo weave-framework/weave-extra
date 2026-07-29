@@ -161,6 +161,16 @@ export interface TablePluginOptions<TRow> {
    */
   filters?: boolean;
   /**
+   * Freeze the actions column to an edge, so the row controls and the table-wide ones stay put
+   * while the grid scrolls sideways. `'end'` by default; `false` lets it scroll with the rest.
+   *
+   * A column that holds the only way to act on a row is the last one that should scroll out of
+   * reach — but it is still a choice, because a narrow grid that never scrolls gains nothing from
+   * it and pays a stacking context for it.
+   */
+  stickyActions?: 'start' | 'end' | false;
+
+  /**
    * Open the columns panel on a right-click anywhere in the header. Default true.
    *
    * A right-click rather than a toolbar button because that is where a grid's column controls have
@@ -408,17 +418,28 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
    * One header control. Built as DOM rather than composed from `<Button>` because it is created
    * inside a header that re-renders on every column change, and an icon button here is a 26px
    * square — the component's padding and min-height would have to be fought back down anyway.
+   *
+   * With no icon it falls back to the title as TEXT. An `<Icon>` given a name the registry does not
+   * hold renders nothing at all, and a row of blank squares is indistinguishable from a broken
+   * toolbar — which is exactly what a mistyped or simply absent icon name produced here.
    */
-  const headerButton = (icon: string, title: string, active: boolean, onClick: (event: Event) => void): HTMLElement => {
+  const headerButton = (
+    icon: string | undefined,
+    title: string,
+    active: boolean,
+    onClick: (event: Event) => void
+  ): HTMLElement => {
     const button: HTMLElement = document.createElement('button');
     button.type = 'button';
-    button.className = active
-      ? 'weave-extra-table__header-action is-active'
-      : 'weave-extra-table__header-action';
+    const base: string = 'weave-extra-table__header-action';
+    button.className = [base, icon ? '' : `${base}--text`, active ? 'is-active' : '']
+      .filter(Boolean)
+      .join(' ');
     button.title = title;
     button.setAttribute('aria-label', title);
     button.setAttribute('aria-pressed', String(active));
-    button.appendChild(asNode(Icon({ name: icon })));
+    if (icon) button.appendChild(asNode(Icon({ name: icon })));
+    else button.appendChild(document.createTextNode(title));
     button.addEventListener('click', onClick);
     return button;
   };
@@ -567,7 +588,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
           bar.className = 'weave-extra-table__header-actions';
           for (const item of headerActions) {
             bar.appendChild(
-              headerButton(item.icon ?? 'circle', item.title, false, (event: Event) => {
+              headerButton(item.icon, item.title, false, (event: Event) => {
                 event.stopPropagation();
                 fire({ kind: 'global', action: item.action });
               })
@@ -583,8 +604,8 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
           }
           return bar;
         },
-        width: Math.max(48, Math.max(rowActions.length, headerActions.length + 2) * 34),
-        sticky: 'end',
+        width: Math.max(48, Math.max(rowActions.length, headerActions.length + 1) * 34),
+        sticky: options.stickyActions === false ? undefined : (options.stickyActions ?? 'end'),
         cell: (row: TRow): Node => {
           const box: HTMLElement = document.createElement('div');
           box.className = 'weave-extra-table__actions';
@@ -734,6 +755,9 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
       onReorder: (names: string[]): void => {
         order.set(names);
         report('order');
+      },
+      onDismiss: (): void => {
+        columnsOpen.set(false);
       },
     },
     fire,

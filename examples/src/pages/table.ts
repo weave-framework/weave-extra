@@ -139,13 +139,15 @@ export function setup(): TablePageContext {
     formatDate: (value: unknown): string =>
       new Date(value as number).toISOString().slice(0, 16).replace('T', ' '),
 
+    // No icon on Reload on purpose: the built-in set has no refresh glyph, and a button that falls
+    // back to its label beats a blank square.
     globalActions: [
-      { action: 'reload', icon: 'refresh-cw', title: 'Reload' },
-      { action: 'export', icon: 'download', title: 'Export' },
+      { action: 'reload', title: 'Reload' },
+      { action: 'export', icon: 'cloud-download', title: 'Export' },
     ],
     actions: [
-      { action: 'open', icon: 'external-link', title: 'Open document' },
-      { action: 'reprocess', icon: 'refresh-cw', title: 'Reprocess', visible: (row) => row.isReprocessable },
+      { action: 'open', icon: 'eye', title: 'Open document' },
+      { action: 'reprocess', icon: 'package', title: 'Reprocess', visible: (row) => row.isReprocessable },
       { action: 'delete', icon: 'trash-2', title: 'Delete', showIn: 'menu' },
     ],
 
@@ -155,6 +157,7 @@ export function setup(): TablePageContext {
     rowEvents: true,
     filters: true,
     resizableColumns: true,
+    stickyActions: 'end',
 
     pagination: true,
     pageSize: 25,

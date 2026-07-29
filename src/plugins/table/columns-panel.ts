@@ -32,6 +32,14 @@ export const DROP_END_CLASS = 'is-drop-end';
 export interface ColumnsPanelOptions {
   /** Called with the full column order after a move. */
   onReorder: (names: string[]) => void;
+  /**
+   * Close the panel — a press outside it, or Escape.
+   *
+   * Handled here rather than left to the consumer because a panel that opens on a right-click and
+   * cannot be dismissed the ordinary way is a trap, and every consumer would otherwise have to
+   * rebuild the same listener. The action owns the element, so "outside" is unambiguous.
+   */
+  onDismiss?: () => void;
   /** Turn reordering off — visibility still works. */
   disabled?: boolean | (() => boolean);
 }
@@ -92,5 +100,25 @@ export function columnsPanel(host: HTMLElement, options: ColumnsPanelOptions): (
     else others[over]?.classList.add(DROP_TARGET_CLASS);
   });
 
-  return (): void => ref.destroy();
+  // `pointerdown`, not `click`: a click fires after the press completes, so a press that starts
+  // outside and drifts over the panel would keep it open. Capture phase, so a handler inside the
+  // page that stops propagation cannot make the panel undismissable.
+  const onOutside = (event: Event): void => {
+    const target: Node | null = event.target instanceof Node ? event.target : null;
+    if (target && host.contains(target)) return;
+    options.onDismiss?.();
+  };
+  const onEscape = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') options.onDismiss?.();
+  };
+  if (options.onDismiss) {
+    document.addEventListener('pointerdown', onOutside, true);
+    document.addEventListener('keydown', onEscape, true);
+  }
+
+  return (): void => {
+    document.removeEventListener('pointerdown', onOutside, true);
+    document.removeEventListener('keydown', onEscape, true);
+    ref.destroy();
+  };
 }

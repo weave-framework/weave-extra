@@ -415,3 +415,46 @@ $topbar-h: var(--weave-toolbar-height, 52px);
   font-style: italic;
   color: var(--fg-soft);
 }
+
+/* ── Table plugin: the table-wide actions, in the header of the actions column ── */
+
+.weave-extra-table__header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  justify-content: flex-end;
+  inline-size: 100%;
+}
+
+.weave-extra-table__header-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 26px;
+  block-size: 26px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg-soft);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  --weave-icon-size: 15px;
+}
+
+.weave-extra-table__header-action:hover {
+  background: var(--surface);
+  color: var(--fg);
+}
+
+// Pressed, not merely hovered: the filter toggle stays on, and the header has to say so.
+.weave-extra-table__header-action.is-active {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.weave-extra-table__header-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
