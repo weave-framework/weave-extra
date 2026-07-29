@@ -17,7 +17,7 @@
  * `showIn`, not two inputs a caller has to keep in step by hand.
  */
 
-import { computed, signal, type Computed, type Signal } from '@weave-framework/runtime';
+import { computed, effect, signal, type Computed, type Signal } from '@weave-framework/runtime';
 import type { TableColumn, SortState } from '@weave-framework/ui/table';
 import Button from '@weave-framework/ui/button';
 import Icon from '@weave-framework/ui/icon';
@@ -415,9 +415,45 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
   };
 
   /**
-   * One header control. Built as DOM rather than composed from `<Button>` because it is created
-   * inside a header that re-renders on every column change, and an icon button here is a 26px
-   * square — the component's padding and min-height would have to be fought back down anyway.
+   * The table's own action area: reload, export, the filter toggle.
+   *
+   * These belong in the grid's header, not on a strip floating above it — they act on THIS table,
+   * and a bar outside its frame reads as page furniture that happens to sit nearby. The trailing
+   * sticky column also puts them beside the per-row actions they are the table-wide counterpart of.
+   *
+   * ONE element, kept across renders, with its state driven by an effect. A header cell is mounted
+   * once: `<Table>` keys the header by column, so returning a newly built bar on each render hands
+   * over something that is immediately discarded — the toggle would flip the signal and the DOM
+   * would keep the old button, which is exactly how it looked dead.
+   */
+  let bar: HTMLElement | null = null;
+  const headerBar = (actions: readonly { action: string; icon?: string; title: string }[]): Node => {
+    if (bar) return bar;
+    bar = document.createElement('div');
+    bar.className = 'weave-extra-table__header-actions';
+    for (const item of actions) {
+      bar.appendChild(
+        headerButton(item.icon, item.title, () => false, (event: Event) => {
+          event.stopPropagation();
+          fire({ kind: 'global', action: item.action });
+        })
+      );
+    }
+    if (options.filters === true) {
+      bar.appendChild(
+        headerButton('search', translate('Filter'), showFilters, (event: Event) => {
+          event.stopPropagation();
+          showFilters.set(!showFilters());
+        })
+      );
+    }
+    return bar;
+  };
+
+  /**
+   * One header control. Built as DOM rather than composed from `<Button>` because an icon button
+   * here is a 26px square — the component's padding and min-height would have to be fought back
+   * down anyway.
    *
    * With no icon it falls back to the title as TEXT. An `<Icon>` given a name the registry does not
    * hold renders nothing at all, and a row of blank squares is indistinguishable from a broken
@@ -426,20 +462,23 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
   const headerButton = (
     icon: string | undefined,
     title: string,
-    active: boolean,
+    active: () => boolean,
     onClick: (event: Event) => void
   ): HTMLElement => {
     const button: HTMLElement = document.createElement('button');
     button.type = 'button';
     const base: string = 'weave-extra-table__header-action';
-    button.className = [base, icon ? '' : `${base}--text`, active ? 'is-active' : '']
-      .filter(Boolean)
-      .join(' ');
     button.title = title;
     button.setAttribute('aria-label', title);
-    button.setAttribute('aria-pressed', String(active));
     if (icon) button.appendChild(asNode(Icon({ name: icon })));
     else button.appendChild(document.createTextNode(title));
+    // The pressed state is an effect, not a value read at build time: this button outlives every
+    // render of the header it sits in, so anything read once would freeze on the day it was made.
+    effect(() => {
+      const on: boolean = active();
+      button.className = [base, icon ? '' : `${base}--text`, on ? 'is-active' : ''].filter(Boolean).join(' ');
+      button.setAttribute('aria-pressed', String(on));
+    });
     button.addEventListener('click', onClick);
     return button;
   };
@@ -497,8 +536,6 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     item.translate && item.title ? translate(item.title) : (item.title ?? item.action);
 
   const columns = computed<TableColumn<TRow>[]>(() => {
-    // Read this so the header's filter control re-renders pressed/unpressed when it is toggled.
-    showFilters();
     const off: Set<string> = new Set(effectiveHidden());
     const out: TableColumn<TRow>[] = [];
 
@@ -575,35 +612,11 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     if (rowActions.length > 0 || hasHeaderControls) {
       out.push({
         key: '__actions',
-        /**
-         * The table's own action area.
-         *
-         * These belong in the grid's header, not on a strip floating above it: reload, export, the
-         * filter toggle and the columns trigger act on THIS table, and a bar outside its frame reads
-         * as page furniture that happens to sit nearby. Putting them in the trailing sticky column
-         * also keeps them beside the per-row actions they are the table-wide counterpart of.
-         */
-        header: (): Node => {
-          const bar: HTMLElement = document.createElement('div');
-          bar.className = 'weave-extra-table__header-actions';
-          for (const item of headerActions) {
-            bar.appendChild(
-              headerButton(item.icon, item.title, false, (event: Event) => {
-                event.stopPropagation();
-                fire({ kind: 'global', action: item.action });
-              })
-            );
-          }
-          if (options.filters === true) {
-            bar.appendChild(
-              headerButton('search', translate('Filter'), showFilters(), (event: Event) => {
-                event.stopPropagation();
-                showFilters.set(!showFilters());
-              })
-            );
-          }
-          return bar;
-        },
+        // Built once and handed back on every render: a header cell is mounted ONCE, because
+        // `<Table>` keys its header by column and the key does not change when a control inside it
+        // does. A freshly built bar would be discarded, which is why the filter toggle appeared dead
+        // — it flipped the signal and the DOM kept the old button. See `headerBar` below.
+        header: (): Node => headerBar(headerActions),
         width: Math.max(48, Math.max(rowActions.length, headerActions.length + 1) * 34),
         sticky: options.stickyActions === false ? undefined : (options.stickyActions ?? 'end'),
         cell: (row: TRow): Node => {

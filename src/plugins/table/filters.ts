@@ -13,7 +13,7 @@
  * you cannot type more than one character into.
  */
 
-import { effect } from '@weave-framework/runtime';
+import { effect, signal, type Signal } from '@weave-framework/runtime';
 import Input from '@weave-framework/ui/input';
 import Select from '@weave-framework/ui/select';
 import type { CellApi, ResolvedColumn } from './contract.js';
@@ -54,24 +54,37 @@ const FILTER_CLASS = 'weave-extra-table__filter';
 /**
  * A text-ish box that commits on Enter.
  *
- * Stays UNCONTROLLED while it has the focus: the DOM holds what is being typed, and writing every
- * keystroke back through the component would move the caret. But it does resync when the committed
- * value changes from elsewhere — `clearFilters`, a preference load — because a box still showing a
- * filter that is no longer in force is worse than one that lags a keystroke.
+ * The value prop is a getter over a DRAFT signal that tracks every keystroke — not over the committed
+ * filter. Two different things need it, and only this split serves both:
+ *
+ *   - the clear affordance. `<Input>` decides whether to draw its `×` from `props.value`, so a static
+ *     value means the button never appears however much you type — which is exactly why the select had
+ *     one and the box did not.
+ *   - the caret. `<Input>` never writes its value prop BACK to the field (its only DOM write is inside
+ *     its own clear), so a live getter here cannot move the caret. That is what makes this safe, and
+ *     it is worth stating, because the same trick on a component that did write back would fight the
+ *     person typing.
+ *
+ * The draft also resyncs when the committed value changes from elsewhere — `clearFilters`, a loaded
+ * preference — but only while the box is unfocused. A box still showing a filter that is no longer in
+ * force is worse than one that lags a keystroke.
  */
 function textFilter(props: FilterProps, type: string): Node {
-  let draft: string = props.value() == null ? '' : String(props.value());
+  const initial: unknown = props.value();
+  const draft: Signal<string> = signal<string>(initial == null ? '' : String(initial));
   const node: Node = asNode(
     Input({
-      value: draft,
+      get value(): string {
+        return draft();
+      },
       type,
       class: FILTER_CLASS,
       label: `Filter ${props.column.title}`,
       clearable: true,
       onInput: (next: string): void => {
-        draft = next;
-        // A cleared box applies immediately: there is nothing to press Enter on once it is empty,
-        // and leaving a stale filter in force after the user emptied it reads as a broken control.
+        draft.set(next);
+        // A cleared box applies immediately: there is nothing left to press Enter on, and leaving a
+        // stale filter in force after the user emptied it reads as a broken control.
         if (next === '') props.commit(undefined);
       },
     })
@@ -79,54 +92,20 @@ function textFilter(props: FilterProps, type: string): Node {
   node.addEventListener('keydown', (event: Event): void => {
     if ((event as KeyboardEvent).key === 'Enter') {
       event.preventDefault();
-      props.commit(draft === '' ? undefined : draft);
+      const value: string = draft();
+      props.commit(value === '' ? undefined : value);
     }
   });
   effect(() => {
     const committed: unknown = props.value();
-    const field: HTMLInputElement | null =
-      node instanceof Element ? node.querySelector('input') : null;
+    const next: string = committed == null ? '' : String(committed);
+    const field: HTMLInputElement | null = node instanceof Element ? node.querySelector('input') : null;
     // Never fight the person typing — only a box they are not in gets rewritten.
     if (!field || document.activeElement === field) return;
-    const next: string = committed == null ? '' : String(committed);
-    if (field.value !== next) {
-      field.value = next;
-      draft = next;
-    }
+    if (field.value !== next) field.value = next;
+    if (draft() !== next) draft.set(next);
   });
   return node;
-}
-
-function selectFilter(props: FilterProps, options: Option[]): Node {
-  return asNode(
-    Select<Option>({
-      options,
-      /**
-       * A getter, and a string.
-       *
-       * A getter because `<Select>` reads its value reactively, and passing a plain value makes it a
-       * CONTROLLED component whose prop then never changes — so the trigger kept saying "All" after
-       * a pick, and kept saying the old value after the filter was cleared. Read live, the trigger
-       * always shows what is actually in force.
-       *
-       * A string because `<Select>` takes `string | T` and emits the VALUE by default (`emit:
-       * 'object'` is what returns the object). Give it a value, take a value.
-       */
-      get value(): string | undefined {
-        const current: unknown = props.value();
-        return current == null || current === '' ? undefined : String(current);
-      },
-      optionValue: (option: Option): string => option.value,
-      optionLabel: (option: Option): string => option.label,
-      class: FILTER_CLASS,
-      label: `Filter ${props.column.title}`,
-      clearable: true,
-      placeholder: 'All',
-      onChange: (next: unknown): void => {
-        props.commit(typeof next === 'string' && next !== '' ? next : undefined);
-      },
-    })
-  );
 }
 
 const text: FilterRenderer = (props: FilterProps): Node => textFilter(props, 'text');
