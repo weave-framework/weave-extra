@@ -22,6 +22,7 @@ import Button from '@weave-framework/ui/button';
 import Checkbox from '@weave-framework/ui/checkbox';
 import {
   tablePlugin,
+  tableRows,
   type ColumnConfig,
   type TableActionEvent,
   type TablePluginApi,
@@ -91,6 +92,12 @@ export interface TablePageContext {
   toggle: (column: ResolvedColumn) => void;
   reset: () => void;
   format: (value: unknown) => string;
+  /**
+   * Returned from `setup()`, not merely exported: a `use:` action resolves from the setup context,
+   * where a capitalised component tag resolves from the module's exports. Exporting it compiles
+   * cleanly and silently attaches nothing.
+   */
+  tableRows: typeof tableRows;
 }
 
 export function setup(): TablePageContext {
@@ -139,11 +146,16 @@ export function setup(): TablePageContext {
     rowHeight: 34,
     maxHeight: 360,
 
+    // Click, double-click and a right-click menu on rows. `<Table>` has none of these; the plugin
+    // marks one cell per row and delegates from the wrapper.
+    rowEvents: true,
+
     // One handler. Everything the grid can report arrives here, with the row in its original shape —
     // no transform step on the way out.
     onAction: (event: TableActionEvent<DocumentRow>): void => {
       if (event.kind === 'cell') record('cell', `${event.action} · ${event.column} = ${String(event.value)}`);
       else if (event.kind === 'item') record('item', `${event.action} · row ${event.row.id}`);
+      else if (event.kind === 'row') record('row', `${event.gesture} · row ${event.row.id}`);
       else if (event.kind === 'global') record('global', event.action);
       else record('columns', `${event.reason} · ${(event.preferences.hidden ?? []).length} hidden`);
     },
@@ -187,6 +199,7 @@ export function setup(): TablePageContext {
     toggle: (column: ResolvedColumn): void => grid.toggleColumn(column.name),
     reset: (): void => grid.resetColumns(),
     format: (value: unknown): string => JSON.stringify(value),
+    tableRows,
   };
 }
 

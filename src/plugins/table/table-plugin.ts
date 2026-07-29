@@ -24,6 +24,7 @@ import Icon from '@weave-framework/ui/icon';
 import type { CellApi, CellRenderer, CellSource, ResolvedColumn } from './contract.js';
 import { BUILT_IN_TYPES, resolveColumns, validateColumns, type ColumnConfig } from './columns.js';
 import { BUILT_IN_RENDERERS, NUMERIC_TYPES } from './renderers.js';
+import { markRow, type RowEventOptions } from './row-events.js';
 
 /** See `CellComponent`: a compiled component is declared as returning `unknown`. */
 const asNode = (value: unknown): Node => value as Node;
@@ -50,6 +51,7 @@ export interface TableAction<TRow> {
 export type TableActionEvent<TRow> =
   | { kind: 'cell'; action: string; row: TRow; column: string; value: unknown; data?: unknown }
   | { kind: 'item'; action: string; row: TRow }
+  | { kind: 'row'; gesture: 'click' | 'doubleclick'; row: TRow }
   | { kind: 'global'; action: string }
   | { kind: 'columns'; reason: ColumnChangeReason; preferences: TablePreferences };
 
@@ -100,6 +102,16 @@ export interface TablePluginOptions<TRow> {
   resizableColumns?: boolean;
 
   /**
+   * Report clicks, double-clicks and a right-click menu on rows.
+   *
+   * Off by default because it is not free: to get from a clicked `<tr>` back to the row object, the
+   * plugin marks one cell per row, and a cell that renders as plain text needs a wrapper element to
+   * carry the mark. Roughly 2% more DOM on a 20-column grid — worth it when a grid is interactive,
+   * and pointless when it is a read-only report.
+   */
+  rowEvents?: boolean;
+
+  /**
    * Render only the rows in view instead of the whole page.
    *
    * Worth having as configuration rather than a default because it is a trade, not a free win. It
@@ -140,6 +152,12 @@ export interface TablePluginApi<TRow> {
   menuActions: (row: TRow) => { action: string; icon?: string; title: string; disabled: boolean }[];
   fire: (event: TableActionEvent<TRow>) => void;
   api: CellApi;
+
+  /**
+   * Wiring for the `tableRows` action — attach it to the element wrapping the grid:
+   * `<div use:tableRows={{ grid.rowEvents }}><Table … /></div>`.
+   */
+  rowEvents: RowEventOptions<TRow>;
 
   /**
    * Pass-throughs for `<Table>`. Getters rather than one object because a Weave template has no prop
@@ -284,8 +302,13 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
     const off: Set<string> = new Set(effectiveHidden());
     const out: TableColumn<TRow>[] = [];
 
+    let marker: boolean = options.rowEvents === true;
     for (const column of ordered()) {
       if (off.has(column.name)) continue;
+      // The FIRST rendered column carries the row. An element cell takes the mark as an attribute
+      // and costs nothing; only a string cell pays for a wrapper to hang it on.
+      const carries: boolean = marker;
+      marker = false;
       const render: CellRenderer<TRow> = renderers[column.type];
       out.push({
         key: column.name,
@@ -299,7 +322,18 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
           const value: unknown = row[column.name];
           const cellApi: CellApi = apiFor(row, column, value);
           const content: Node | string = render({ value, row, column, api: cellApi });
-          if (!column.cellAction) return content;
+          if (!column.cellAction) {
+            if (!carries) return content;
+            if (content instanceof Element) {
+              markRow(content, row);
+              return content;
+            }
+            const carrier: HTMLElement = document.createElement('span');
+            carrier.append(document.createTextNode(typeof content === 'string' ? content : ''));
+            if (typeof content !== 'string') carrier.append(content);
+            markRow(carrier, row);
+            return carrier;
+          }
           // A wrapper is only paid for by the columns that asked for one — in a real config that is a
           // copy button on a single id column, not a tax on all 348.
           const box: HTMLElement = document.createElement('span');
@@ -316,6 +350,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
             cellApi.action(column.cellAction!.action, undefined, event);
           });
           box.append(control);
+          if (carries) markRow(box, row);
           return box;
         },
       });
@@ -407,6 +442,20 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
         })),
     fire,
     api,
+    rowEvents: {
+      onRowClick: (row: TRow): void => fire({ kind: 'row', gesture: 'click', row }),
+      onRowDoubleClick: (row: TRow): void => fire({ kind: 'row', gesture: 'doubleclick', row }),
+      menuItems: (row: TRow) =>
+        (options.actions ?? [])
+          .filter((item) => item.showIn !== 'row' && roleOk(item.roles))
+          .filter((item) => !item.visible || item.visible(row))
+          .map((item) => ({
+            value: item.action,
+            label: titleOf(item),
+            disabled: item.disabled ? item.disabled(row) : false,
+          })),
+      onMenuSelect: (action: string, row: TRow): void => fire({ kind: 'item', action, row }),
+    },
     virtual: (): boolean => options.virtual === true,
     rowHeight: (): number | undefined => options.rowHeight,
     overscan: (): number | undefined => options.overscan,

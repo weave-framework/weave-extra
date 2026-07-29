@@ -40,3 +40,6 @@ export type {
 } from './columns.js';
 export { BUILT_IN_TYPES, resolveColumns, validateColumns } from './columns.js';
 export { BUILT_IN_RENDERERS } from './renderers.js';
+
+export { tableRows, rowFromEvent, markRow, ROW_MARKER } from './row-events.js';
+export type { RowEventOptions } from './row-events.js';

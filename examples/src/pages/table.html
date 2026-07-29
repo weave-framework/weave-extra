@@ -33,13 +33,19 @@
   </div>
 
   <h2>The grid</h2>
+  <p>
+    The grid is wrapped in one element carrying <code>use:tableRows</code>. Click a row, double-click
+    it, or right-click for its menu — all three arrive at the same <code>onAction</code>.
+  </p>
   <Demo height="420px">
     <!-- #region table-usage -->
-    <Table columns={{ grid.columns() }} dataSource={{ data }} trackBy={{ (row: DocumentRow) => row.id }}
-           sort={{ grid.sort() }} onSort={{ grid.onSort }} selectable
-           virtual={{ grid.virtual() }} rowHeight={{ grid.rowHeight() }}
-           overscan={{ grid.overscan() }} maxHeight={{ grid.maxHeight() }}
-           ariaLabel="Documents" />
+    <div use:tableRows={{ grid.rowEvents }}>
+        <Table columns={{ grid.columns() }} dataSource={{ data }} trackBy={{ (row: DocumentRow) => row.id }}
+             sort={{ grid.sort() }} onSort={{ grid.onSort }} selectable
+             virtual={{ grid.virtual() }} rowHeight={{ grid.rowHeight() }}
+             overscan={{ grid.overscan() }} maxHeight={{ grid.maxHeight() }}
+             ariaLabel="Documents" />
+    </div>
     <!-- #endregion -->
   </Demo>
   <CodeTabs id="table-usage" />
