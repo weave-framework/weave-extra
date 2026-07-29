@@ -11,6 +11,7 @@
  * panel some people cannot reorder.
  */
 
+import { effect } from '@weave-framework/runtime';
 import { dropList, moveItemInArray, type DropEvent } from '@weave-framework/ui/cdk';
 
 /** Attribute naming the column a row stands for. Read on drop, so the DOM is the source of order. */
@@ -18,6 +19,12 @@ export const COLUMN_ATTR = 'data-column';
 
 /** Attribute marking the grip inside a row. Only a drag started on it moves the row. */
 export const HANDLE_ATTR = 'data-column-handle';
+
+/** On the row being dragged. */
+export const DRAGGING_CLASS = 'is-dragging';
+
+/** On the row the dragged one would land before. */
+export const DROP_TARGET_CLASS = 'is-drop-target';
 
 export interface ColumnsPanelOptions {
   /** Called with the full column order after a move. */
@@ -54,5 +61,24 @@ export function columnsPanel(host: HTMLElement, options: ColumnsPanelOptions): (
       options.onReorder(moveItemInArray(names, previousIndex, currentIndex));
     },
   });
+  /**
+   * Mark the lifted row and the gap it would drop into.
+   *
+   * Not decoration. `dropList` moves nothing until the drop commits, so without this a drag shows
+   * absolutely nothing between grabbing a row and releasing it — which reads as a control that does
+   * not work, whether or not the drop then succeeds. The state is reactive on the ref rather than
+   * an attribute the CDK sets, so it has to be read and applied here.
+   */
+  effect(() => {
+    const active: number = ref.activeIndex();
+    const over: number = ref.overIndex();
+    const live: boolean = ref.dragging();
+    const rows: Element[] = [...host.querySelectorAll(`[${COLUMN_ATTR}]`)];
+    rows.forEach((rowEl, index) => {
+      rowEl.classList.toggle(DRAGGING_CLASS, live && index === active);
+      rowEl.classList.toggle(DROP_TARGET_CLASS, live && index === over && index !== active);
+    });
+  });
+
   return (): void => ref.destroy();
 }

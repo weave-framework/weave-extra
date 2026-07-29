@@ -1,22 +1,25 @@
 /**
- * The table plugin, driven by a column file fetched at runtime.
+ * The table plugin, assembled the way a screen actually uses it.
  *
- * There are two ways to get a `*.columns.json` into a grid, and this page is the second one on
- * purpose, because it is the one with a question in it:
+ * Two things this page has to get right, and an earlier version of it got both wrong.
  *
- *   import columns from './documents.columns.json' with { type: 'json' };   // build time
- *   const columns = await fetch('/json/documents.columns.json').then(…);    // runtime
+ * It is ONE grid, not a gallery of parts. A toolbar above it, a footer under it, the columns panel in
+ * a popover off the toolbar. Laid out as separate documented blocks, the pieces read as separate
+ * widgets that happen to share a page — precisely the wrong impression, because the whole point of
+ * the plugin is that they are one thing driven by one configuration.
  *
- * The build-time import is bundled and type-checked against `ColumnConfig`, and changing a column
- * means a rebuild. The runtime fetch is what an application with dozens of screens wants — a
- * deployment can change what a grid shows without shipping new code — and it costs the type check,
- * which is why the plugin validates the config itself and throws with everything wrong at once.
+ * And it actually filters. The plugin deliberately filters nothing itself — a real grid holds one
+ * page fetched from a server that does the work — but a demo that reports a query and then shows the
+ * same rows looks broken rather than principled. So this page plays the server: it holds the whole
+ * set and applies the query the plugin hands it. That is also the honest illustration, because it
+ * puts the work exactly where a caller's own fetch would go.
  *
- * The plugin takes a GETTER for `columns`, so this page can build it before the file has arrived and
- * simply let the signal fill in. Nothing here waits.
+ * The columns still come from a file at runtime (`fetch`), which is the interesting half of the two
+ * ways to load them; the other is `import cols from './x.columns.json' with { type: 'json' }`,
+ * bundled and type-checked, at the cost of a rebuild to change a column.
  */
 
-import { signal, onMount, type Signal } from '@weave-framework/runtime';
+import { computed, signal, onMount, type Computed, type Signal } from '@weave-framework/runtime';
 import Table from '@weave-framework/ui/table';
 import Button from '@weave-framework/ui/button';
 import Checkbox from '@weave-framework/ui/checkbox';
@@ -56,14 +59,17 @@ export interface DocumentRow extends Record<string, unknown> {
 }
 
 const STATES: string[] = ['succeeded', 'retrying', 'failed', 'warning', 'rejected'];
+const FORMATS: string[] = ['EDIFACT', 'X12', 'XML'];
+const TYPES: string[] = ['ORDERS', 'INVOIC', 'DESADV', 'ORDRSP'];
 
-function rows(): DocumentRow[] {
+/** The whole set. A server would hold this; here the page does, so a query has something to act on. */
+function makeRows(count: number): DocumentRow[] {
   const out: DocumentRow[] = [];
-  for (let i: number = 0; i < 24; i++) {
+  for (let i: number = 0; i < count; i++) {
     out.push({
       id: 4200 + i,
-      documentFormat: i % 3 === 0 ? 'EDIFACT' : 'X12',
-      documentType: ['ORDERS', 'INVOIC', 'DESADV'][i % 3],
+      documentFormat: FORMATS[i % FORMATS.length],
+      documentType: TYPES[i % TYPES.length],
       sender: `Sender ${String.fromCharCode(65 + (i % 6))}`,
       recipient: `Recipient ${String.fromCharCode(88 - (i % 5))}`,
       momentCreated: 1750000000000 + i * 3600_000,
@@ -89,15 +95,18 @@ export interface TablePageContext {
   Table: typeof Table;
   Paginator: typeof Paginator;
   grid: TablePluginApi<DocumentRow>;
-  data: Signal<DocumentRow[]>;
+  rows: Computed<DocumentRow[]>;
+  matched: Computed<number>;
   status: () => string;
   log: () => LogEntry[];
   clearLog: () => void;
   menuColumns: () => ResolvedColumn[];
   isOn: (column: ResolvedColumn) => boolean;
   toggle: (column: ResolvedColumn) => void;
+  canToggle: (column: ResolvedColumn) => boolean;
   reset: () => void;
-  format: (value: unknown) => string;
+  columnsOpen: () => boolean;
+  toggleColumns: () => void;
   /**
    * Returned from `setup()`, not merely exported: a `use:` action resolves from the setup context,
    * where a capitalised component tag resolves from the module's exports. Exporting it compiles
@@ -105,19 +114,17 @@ export interface TablePageContext {
    */
   tableRows: typeof tableRows;
   columnsPanel: typeof columnsPanel;
-  canToggle: (column: ResolvedColumn) => boolean;
 }
 
 export function setup(): TablePageContext {
   const configs: Signal<ColumnConfig[]> = signal<ColumnConfig[]>([]);
   const status: Signal<string> = signal<string>('loading…');
-  const data: Signal<DocumentRow[]> = signal<DocumentRow[]>(rows());
   const log: Signal<LogEntry[]> = signal<LogEntry[]>([]);
-  // Stands in for what a server would report alongside a page.
-  const total: Signal<number> = signal<number>(248);
+  const columnsOpen: Signal<boolean> = signal<boolean>(false);
   // Empty at first, on purpose: this is the race a real application has, where the enums come over
   // the network and can land after the first page of rows.
   const enums: Signal<EnumTables> = signal<EnumTables>({});
+  const all: DocumentRow[] = makeRows(248);
   let seq: number = 0;
 
   const record = (kind: string, detail: string): void => {
@@ -126,17 +133,10 @@ export function setup(): TablePageContext {
   };
 
   const grid: TablePluginApi<DocumentRow> = tablePlugin<DocumentRow>({
-    // A getter, not an array: the file has not arrived yet, and this page does not wait for it.
     columns: configs,
-
-    // The consumer's own cell types. A Weave component needs no wrapper — it is already the shape a
-    // cell renderer has to be.
     cells: { 'status-chip': StatusChip },
-
     // A getter, so the tables can arrive late and still fill the cells and the filters.
     enums: enums,
-    // Only an Admin sees the `internalNote` column. Denied here, so the column is DROPPED rather than
-    // hidden — a column nobody may see must not be switchable back on from the columns menu.
     checkRole: (roles: string[]): boolean => roles.includes('Operator'),
     formatDate: (value: unknown): string =>
       new Date(value as number).toISOString().slice(0, 16).replace('T', ' '),
@@ -145,35 +145,24 @@ export function setup(): TablePageContext {
       { action: 'reload', icon: 'refresh-cw', title: 'Reload' },
       { action: 'export', icon: 'download', title: 'Export' },
     ],
-
     actions: [
       { action: 'open', icon: 'external-link', title: 'Open document' },
       { action: 'reprocess', icon: 'refresh-cw', title: 'Reprocess', visible: (row) => row.isReprocessable },
       { action: 'delete', icon: 'trash-2', title: 'Delete', showIn: 'menu' },
     ],
 
-    // Only the rows in view get rendered. Configuration, not a default: it fixes the row height and
-    // rules out an expandable detail row, so it is a choice a grid makes rather than one made for it.
     virtual: true,
     rowHeight: 34,
     maxHeight: 360,
-
-    // Click, double-click and a right-click menu on rows. `<Table>` has none of these; the plugin
-    // marks one cell per row and delegates from the wrapper.
     rowEvents: true,
-
-    // A filter control per column, in a second header row. The grid filters nothing itself: the rows
-    // it holds are a page from a server, so a commit reports the query and the page is reloaded.
     filters: true,
+    resizableColumns: true,
 
-    // A page at a time. `total` is read reactively because it arrives WITH the rows -- a server
-    // reports how many matched only once it has run the query.
     pagination: true,
     pageSize: 25,
     pageSizeOptions: [10, 25, 50],
-    total: (): number => total(),
+    total: (): number => matched(),
 
-    // A class from the row's own data. Failed documents are tinted; test documents are marked.
     rowClass: (row: DocumentRow): string[] => {
       const names: string[] = [];
       if (row.processingState === 'failed' || row.processingState === 'rejected') names.push('row--bad');
@@ -181,17 +170,59 @@ export function setup(): TablePageContext {
       return names;
     },
 
-    // One handler. Everything the grid can report arrives here, with the row in its original shape —
-    // no transform step on the way out.
     onAction: (event: TableActionEvent<DocumentRow>): void => {
       if (event.kind === 'cell') record('cell', `${event.action} · ${event.column} = ${String(event.value)}`);
       else if (event.kind === 'item') record('item', `${event.action} · row ${event.row.id}`);
       else if (event.kind === 'row') record('row', `${event.gesture} · row ${event.row.id}`);
       else if (event.kind === 'global') record('global', event.action);
       else if (event.kind === 'filter') record('filter', String(event.query) || '(cleared)');
-      else if (event.kind === 'page') record('page', `${event.reason} \u00b7 ${JSON.stringify(event.query)}`);
+      else if (event.kind === 'page') record('page', `${event.reason} · ${JSON.stringify(event.query)}`);
       else record('columns', `${event.reason} · ${(event.preferences.hidden ?? []).length} hidden`);
     },
+  });
+
+  /**
+   * Standing in for the server.
+   *
+   * Reads the plugin's filter VALUES rather than re-parsing the query it built. The query is for a
+   * backend; writing an OData parser here to prove the loop works would prove the wrong thing. What a
+   * real caller does with `event.query` is send it.
+   */
+  const filtered: Computed<DocumentRow[]> = computed<DocumentRow[]>(() => {
+    const entries: [string, unknown][] = Object.entries(grid.filters()).filter(
+      ([, value]) => value !== undefined && value !== ''
+    );
+    if (entries.length === 0) return all;
+    return all.filter((row) =>
+      entries.every(([name, wanted]) => {
+        const value: unknown = row[name];
+        if (typeof value === 'number' || typeof value === 'boolean') return String(value) === String(wanted);
+        return String(value ?? '')
+          .toLowerCase()
+          .includes(String(wanted).toLowerCase());
+      })
+    );
+  });
+
+  const matched: Computed<number> = computed<number>(() => filtered().length);
+
+  const sorted: Computed<DocumentRow[]> = computed<DocumentRow[]>(() => {
+    const { active, direction } = grid.sort();
+    const base: DocumentRow[] = filtered();
+    if (!active || !direction) return base;
+    const dir: number = direction === 'asc' ? 1 : -1;
+    return [...base].sort((a, b) => {
+      const x: unknown = a[active];
+      const y: unknown = b[active];
+      if (typeof x === 'number' && typeof y === 'number') return (x - y) * dir;
+      return String(x ?? '').localeCompare(String(y ?? '')) * dir;
+    });
+  });
+
+  const rows: Computed<DocumentRow[]> = computed<DocumentRow[]>(() => {
+    const size: number = grid.pageSize();
+    const start: number = grid.page() * size;
+    return sorted().slice(start, start + size);
   });
 
   onMount(() => {
@@ -207,7 +238,7 @@ export function setup(): TablePageContext {
         // Setting the signal is the whole handover: the plugin re-validates and rebuilds its columns,
         // and a config that is wrong throws here rather than rendering blank columns.
         configs.set(loaded);
-        status.set(`${loaded.length} column(s) from ${COLUMNS_URL}`);
+        status.set(`${loaded.length} columns from ${COLUMNS_URL}`);
       })
       .catch((error: unknown) => {
         if (!cancelled) status.set(`failed: ${String(error)}`);
@@ -231,7 +262,6 @@ export function setup(): TablePageContext {
           },
         ])
       );
-      status.set(`${status()} \u00b7 enums loaded`);
     }, 900);
 
     return () => {
@@ -244,20 +274,22 @@ export function setup(): TablePageContext {
     Table,
     Paginator,
     grid,
-    data,
+    rows,
+    matched,
     status,
     log,
     clearLog: (): void => {
       log.set([]);
     },
-    // Every rendered column, not only the switchable ones: a pinned column can still be MOVED, and
-    // leaving it out of the list would make the order shown here disagree with the grid.
     menuColumns: (): ResolvedColumn[] => grid.allColumns(),
-    canToggle: (column: ResolvedColumn): boolean => column.availability === 'toggleable',
     isOn: (column: ResolvedColumn): boolean => !(grid.preferences().hidden ?? []).includes(column.name),
     toggle: (column: ResolvedColumn): void => grid.toggleColumn(column.name),
+    canToggle: (column: ResolvedColumn): boolean => column.availability === 'toggleable',
     reset: (): void => grid.resetColumns(),
-    format: (value: unknown): string => JSON.stringify(value),
+    columnsOpen: (): boolean => columnsOpen(),
+    toggleColumns: (): void => {
+      columnsOpen.set(!columnsOpen());
+    },
     tableRows,
     columnsPanel,
   };

@@ -1,14 +1,101 @@
 <article>
   <h1>Table plugin</h1>
   <p class="lead">
-    A grid driven by a column file, with a cell type supplied as an ordinary Weave component.
+    One grid, driven by a column file, with a cell type supplied as an ordinary Weave component.
   </p>
   <p>
     The columns below were fetched from <code>public/json/documents.columns.json</code> after this page
-    mounted — the plugin was constructed with an empty list and picked them up when they landed. Change
-    that file and reload: no rebuild.
+    mounted — the plugin was built with an empty list and picked them up when they landed. Change that
+    file and reload: no rebuild. The enums arrive a beat later still, the way a second request would,
+    and the <strong>State</strong> column fills in when they do.
   </p>
-  <p class="demo-note">Columns: {{ status() }}</p>
+
+  <Demo>
+    <!-- #region table-usage -->
+    <div class="grid">
+      <div class="grid__toolbar">
+        @for (action of grid.globalActions(); track action.action) {
+          <Button variant="ghost" on:click={{ () => grid.fire({ kind: 'global', action: action.action }) }}>
+            <Icon name={{ action.icon }} />
+            {{ action.title }}
+          </Button>
+        }
+        <span class="grid__spacer"></span>
+        @if (grid.filtersEnabled()) {
+          <Button variant={{ grid.filtersVisible() ? 'primary' : 'ghost' }} on:click={{ grid.toggleFilters }}>
+            <Icon name={{ 'search' }} />
+            Filter
+          </Button>
+        }
+        <div class="grid__columns">
+          <Button variant={{ columnsOpen() ? 'primary' : 'ghost' }} on:click={{ toggleColumns }}>
+            <Icon name={{ 'columns-3' }} />
+            Columns
+          </Button>
+          @if (columnsOpen()) {
+            <div class="columns-panel" use:columnsPanel={{ grid.columnsPanel }}>
+              @for (column of menuColumns(); track column.name) {
+                <div class="columns-panel__row" data-column={{ column.name }}>
+                  <span class="columns-panel__grip" data-column-handle tabindex="0"
+                        role="button" aria-label={{ 'Reorder ' + column.title }}>
+                    <Icon name={{ 'grip-vertical' }} />
+                  </span>
+                  <Checkbox checked={{ isOn(column) }} disabled={{ !canToggle(column) }}
+                            onChange={{ () => toggle(column) }} label={{ column.title }} />
+                </div>
+              }
+              <div class="columns-panel__foot">
+                <Button variant="ghost" on:click={{ reset }}>Reset to the file</Button>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div use:tableRows={{ grid.rowEvents }}>
+        <Table columns={{ grid.columns() }} dataSource={{ rows }} trackBy={{ (row: DocumentRow) => row.id }}
+               sort={{ grid.sort() }} onSort={{ grid.onSort }} selectable
+               virtual={{ grid.virtual() }} rowHeight={{ grid.rowHeight() }}
+               overscan={{ grid.overscan() }} maxHeight={{ grid.maxHeight() }}
+               headerRow={{ grid.headerRow() }} columnWidths={{ grid.columnWidths() }}
+               onColumnResize={{ grid.onColumnResize }} resizableColumns
+               emptyText="Nothing matches these filters" ariaLabel="Documents" />
+      </div>
+
+      @let pages = grid.paginator();
+      <div class="grid__footer">
+        <span class="grid__count">{{ matched() }} matching</span>
+        <span class="grid__spacer"></span>
+        @if (pages) {
+          <Paginator length={{ pages.length }} pageSize={{ pages.pageSize }} pageIndex={{ pages.pageIndex }}
+                     pageSizeOptions={{ pages.pageSizeOptions }} onPage={{ grid.onPage }} />
+        }
+      </div>
+    </div>
+    <!-- #endregion -->
+  </Demo>
+  <p class="demo-note">{{ status() }}</p>
+
+  <h2>What it does</h2>
+  <p>
+    <strong>Filter</strong> opens a control per column inside <code>&lt;thead&gt;</code>, so the boxes
+    line up with their columns whatever the widths are. Type and press <kbd>Enter</kbd>, or pick from a
+    list. The plugin filters nothing itself — it reports the query, and this page plays the server by
+    applying it, which is exactly where your own fetch would go.
+  </p>
+  <p>
+    <strong>Columns</strong> switches a column off, or drags one to a new position; the grip also works
+    from the keyboard with <kbd>Space</kbd>, the arrows, then <kbd>Space</kbd>.
+    <strong>Reprocessable</strong> is <code>hideInMenu</code> — listed and movable, but not switchable.
+    <code>rawState</code> is <code>hidden</code>, never rendered but still in the file because other
+    things read it. <code>internalNote</code> asks for a role this viewer lacks, so it is in neither.
+  </p>
+  <p>
+    <strong>Rows</strong> take a click, a double-click and a right-click menu, and carry classes from
+    their own data — failed and rejected documents tinted, test documents marked. Drag a column edge to
+    resize; the width is kept with the order and the visibility.
+  </p>
+  <CodeTabs id="table-usage" />
 
   <h2>Loading the configuration</h2>
   <p>
@@ -18,94 +105,10 @@
   </p>
   <CodeTabs id="table-loading" />
 
-  <h2>Columns</h2>
-  <p>
-    Switched off here, the column leaves the grid and the change is reported through the same
-    <code>onAction</code> as everything else. Drag a grip to reorder — or focus one and press
-    <kbd>Space</kbd>, then the arrows, then <kbd>Space</kbd> again.
-  </p>
-  <p>
-    <strong>Reprocessable</strong> is <code>hideInMenu</code> — listed and movable, but its checkbox is
-    disabled, so it cannot be switched off. <code>rawState</code> is <code>hidden</code> — never
-    rendered, and still in the file because other things read it. <code>internalNote</code> asks for a
-    role this viewer does not hold, so it is absent from both the grid and this list.
-  </p>
-  <div class="columns-panel" use:columnsPanel={{ grid.columnsPanel }}>
-    @for (column of menuColumns(); track column.name) {
-      <div class="columns-panel__row" data-column={{ column.name }}>
-        <span class="columns-panel__grip" data-column-handle tabindex="0"
-              role="button" aria-label={{ 'Reorder ' + column.title }}>
-          <Icon name={{ 'grip-vertical' }} />
-        </span>
-        <Checkbox checked={{ isOn(column) }} disabled={{ !canToggle(column) }}
-                  onChange={{ () => toggle(column) }} label={{ column.title }} />
-      </div>
-    }
-  </div>
-  <div class="demo-controls">
-    <Button variant="ghost" on:click={{ reset }}>Reset to the file</Button>
-  </div>
-
-  <h2>Toolbar</h2>
-  <p>
-    Header actions, and the filter toggle beside them — the same place the configuration this replaces
-    put it. Turning the filter row on adds a second row inside <code>&lt;thead&gt;</code>, so the
-    controls line up with their columns whatever the widths are.
-  </p>
-  <div class="demo-controls">
-    @for (action of grid.globalActions(); track action.action) {
-      <Button variant="ghost" on:click={{ () => grid.fire({ kind: 'global', action: action.action }) }}>
-        {{ action.title }}
-      </Button>
-    }
-    @if (grid.filtersEnabled()) {
-      <Button variant={{ grid.filtersVisible() ? 'primary' : 'ghost' }} on:click={{ grid.toggleFilters }}>Filter</Button>
-      <Button variant="ghost" on:click={{ grid.clearFilters }}>Clear filters</Button>
-    }
-  </div>
-
-  <h2>The grid</h2>
-  <p>
-    The grid is wrapped in one element carrying <code>use:tableRows</code>. Click a row, double-click
-    it, or right-click for its menu — all three arrive at the same <code>onAction</code>.
-  </p>
-  <Demo height="420px">
-    <!-- #region table-usage -->
-    <div use:tableRows={{ grid.rowEvents }}>
-        <Table columns={{ grid.columns() }} dataSource={{ data }} trackBy={{ (row: DocumentRow) => row.id }}
-             sort={{ grid.sort() }} onSort={{ grid.onSort }} selectable
-             virtual={{ grid.virtual() }} rowHeight={{ grid.rowHeight() }}
-             overscan={{ grid.overscan() }} maxHeight={{ grid.maxHeight() }}
-             headerRow={{ grid.headerRow() }} columnWidths={{ grid.columnWidths() }}
-             onColumnResize={{ grid.onColumnResize }} resizableColumns
-             ariaLabel="Documents" />
-    </div>
-    <!-- #endregion -->
-  </Demo>
-  <CodeTabs id="table-usage" />
-
-  <p>
-    Rows carry classes from their own data — a failed or rejected document is tinted, a test
-    document is marked. Drag a column edge to resize; the width is kept in the same preferences as
-    the order and the visibility.
-  </p>
-
-  <h2>Pages</h2>
-  <p>
-    The grid holds one page. Moving reports the query for the next one — and changing a filter or
-    the sort sends the reader back to page one, because staying on page 7 of a result set that no
-    longer has seven pages is how a filter comes to look like it returned nothing.
-  </p>
-  @let pages = grid.paginator();
-  @if (pages) {
-    <Paginator length={{ pages.length }} pageSize={{ pages.pageSize }} pageIndex={{ pages.pageIndex }}
-               pageSizeOptions={{ pages.pageSizeOptions }} onPage={{ grid.onPage }} />
-  }
-
   <h2>What came back</h2>
   <p>
-    Click a status chip, a row action, or a column checkbox. Everything arrives at one handler, and the
-    row is the object this page put in — no transform on the way out.
+    Everything the grid can report arrives at one handler, and the row is the object this page put in —
+    no transform on the way out.
   </p>
   <div class="demo-controls">
     <Button variant="ghost" on:click={{ clearLog }}>Clear</Button>

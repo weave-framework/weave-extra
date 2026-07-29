@@ -49,7 +49,7 @@ export type { EnumEntry, EnumTables, EnumList } from './enums.js';
 export { BUILT_IN_FILTERS, odataQuery, rawQuery } from './filters.js';
 export type { FilterProps, FilterRenderer, QueryBuilder } from './filters.js';
 
-export { columnsPanel, COLUMN_ATTR, HANDLE_ATTR } from './columns-panel.js';
+export { columnsPanel, COLUMN_ATTR, HANDLE_ATTR, DRAGGING_CLASS, DROP_TARGET_CLASS } from './columns-panel.js';
 export type { ColumnsPanelOptions } from './columns-panel.js';
 
 export { tableRows, rowFromEvent, markRow, ROW_MARKER } from './row-events.js';
