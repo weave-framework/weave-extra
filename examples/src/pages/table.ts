@@ -20,9 +20,11 @@ import { signal, onMount, type Signal } from '@weave-framework/runtime';
 import Table from '@weave-framework/ui/table';
 import Button from '@weave-framework/ui/button';
 import Checkbox from '@weave-framework/ui/checkbox';
+import Icon from '@weave-framework/ui/icon';
 import {
   tablePlugin,
   tableRows,
+  columnsPanel,
   type ColumnConfig,
   type TableActionEvent,
   type TablePluginApi,
@@ -98,6 +100,8 @@ export interface TablePageContext {
    * cleanly and silently attaches nothing.
    */
   tableRows: typeof tableRows;
+  columnsPanel: typeof columnsPanel;
+  canToggle: (column: ResolvedColumn) => boolean;
 }
 
 export function setup(): TablePageContext {
@@ -204,13 +208,17 @@ export function setup(): TablePageContext {
     clearLog: (): void => {
       log.set([]);
     },
-    menuColumns: (): ResolvedColumn[] => grid.allColumns().filter((column) => column.availability === 'toggleable'),
+    // Every rendered column, not only the switchable ones: a pinned column can still be MOVED, and
+    // leaving it out of the list would make the order shown here disagree with the grid.
+    menuColumns: (): ResolvedColumn[] => grid.allColumns(),
+    canToggle: (column: ResolvedColumn): boolean => column.availability === 'toggleable',
     isOn: (column: ResolvedColumn): boolean => !(grid.preferences().hidden ?? []).includes(column.name),
     toggle: (column: ResolvedColumn): void => grid.toggleColumn(column.name),
     reset: (): void => grid.resetColumns(),
     format: (value: unknown): string => JSON.stringify(value),
     tableRows,
+    columnsPanel,
   };
 }
 
-export { Button, Checkbox, Demo, CodeTabs };
+export { Button, Checkbox, Icon, Demo, CodeTabs };

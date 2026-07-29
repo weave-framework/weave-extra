@@ -269,3 +269,52 @@ $topbar-h: var(--weave-toolbar-height, 52px);
   padding: 3px 6px;
   vertical-align: middle;
 }
+
+/* ── Table plugin: the columns panel ── */
+
+.columns-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 16px 0;
+  padding: 6px;
+  max-inline-size: 320px;
+  background: var(--raised);
+  border: 1px solid var(--field-line);
+  border-radius: 8px;
+}
+
+.columns-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+
+.columns-panel__row:hover {
+  background: var(--surface);
+}
+
+// The CDK marks the lifted row and the gap it would drop into; without something visible on both, a
+// keyboard drag gives no feedback at all — the row moves and nothing says so until it lands.
+.columns-panel__row[data-dragging='true'] {
+  opacity: 0.5;
+}
+
+.columns-panel__row[data-drag-over='true'] {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.columns-panel__grip {
+  display: inline-flex;
+  color: var(--muted);
+  cursor: grab;
+  --weave-icon-size: 14px;
+}
+
+.columns-panel__grip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

@@ -26,6 +26,7 @@ import { BUILT_IN_TYPES, resolveColumns, validateColumns, type ColumnConfig } fr
 import { BUILT_IN_RENDERERS, NUMERIC_TYPES } from './renderers.js';
 import { markRow, type RowEventOptions } from './row-events.js';
 import { BUILT_IN_FILTERS, odataQuery, type FilterRenderer, type QueryBuilder } from './filters.js';
+import type { ColumnsPanelOptions } from './columns-panel.js';
 
 /** See `CellComponent`: a compiled component is declared as returning `unknown`. */
 const asNode = (value: unknown): Node => value as Node;
@@ -521,6 +522,12 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
           },
         });
       };
+    },
+    columnsPanel: {
+      onReorder: (names: string[]): void => {
+        order.set(names);
+        report('order');
+      },
     },
     fire,
     api,

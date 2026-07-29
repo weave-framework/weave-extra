@@ -44,5 +44,8 @@ export { BUILT_IN_RENDERERS } from './renderers.js';
 export { BUILT_IN_FILTERS, odataQuery, rawQuery } from './filters.js';
 export type { FilterProps, FilterRenderer, QueryBuilder } from './filters.js';
 
+export { columnsPanel, COLUMN_ATTR, HANDLE_ATTR } from './columns-panel.js';
+export type { ColumnsPanelOptions } from './columns-panel.js';
+
 export { tableRows, rowFromEvent, markRow, ROW_MARKER } from './row-events.js';
 export type { RowEventOptions } from './row-events.js';

@@ -21,15 +21,29 @@
   <h2>Columns</h2>
   <p>
     Switched off here, the column leaves the grid and the change is reported through the same
-    <code>onAction</code> as everything else. <strong>Reprocessable</strong> is
-    <code>hideInMenu</code> — rendered, but not offered. <code>rawState</code> is
-    <code>hidden</code> — never rendered, and still in the file because other things read it.
+    <code>onAction</code> as everything else. Drag a grip to reorder — or focus one and press
+    <kbd>Space</kbd>, then the arrows, then <kbd>Space</kbd> again.
   </p>
-  <div class="demo-controls">
+  <p>
+    <strong>Reprocessable</strong> is <code>hideInMenu</code> — listed and movable, but its checkbox is
+    disabled, so it cannot be switched off. <code>rawState</code> is <code>hidden</code> — never
+    rendered, and still in the file because other things read it. <code>internalNote</code> asks for a
+    role this viewer does not hold, so it is absent from both the grid and this list.
+  </p>
+  <div class="columns-panel" use:columnsPanel={{ grid.columnsPanel }}>
     @for (column of menuColumns(); track column.name) {
-      <Checkbox checked={{ isOn(column) }} onChange={{ () => toggle(column) }} label={{ column.title }} />
+      <div class="columns-panel__row" data-column={{ column.name }}>
+        <span class="columns-panel__grip" data-column-handle tabindex="0"
+              role="button" aria-label={{ 'Reorder ' + column.title }}>
+          <Icon name={{ 'grip-vertical' }} />
+        </span>
+        <Checkbox checked={{ isOn(column) }} disabled={{ !canToggle(column) }}
+                  onChange={{ () => toggle(column) }} label={{ column.title }} />
+      </div>
     }
-    <Button variant="ghost" on:click={{ reset }}>Reset</Button>
+  </div>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ reset }}>Reset to the file</Button>
   </div>
 
   <h2>Toolbar</h2>
