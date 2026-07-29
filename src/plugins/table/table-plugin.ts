@@ -704,7 +704,7 @@ export function tablePlugin<TRow extends Record<string, unknown> = Record<string
         if (!render) return null;
         return render({
           column: resolved,
-          value: filterValues()[resolved.name],
+          value: (): unknown => filterValues()[resolved.name],
           enums: enumTables(),
           api,
           commit: (next: unknown): void => {

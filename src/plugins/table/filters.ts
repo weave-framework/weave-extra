@@ -13,6 +13,7 @@
  * you cannot type more than one character into.
  */
 
+import { effect } from '@weave-framework/runtime';
 import Input from '@weave-framework/ui/input';
 import Select from '@weave-framework/ui/select';
 import type { CellApi, ResolvedColumn } from './contract.js';
@@ -23,8 +24,16 @@ const asNode = (value: unknown): Node => value as Node;
 
 export interface FilterProps {
   column: ResolvedColumn;
-  /** The committed value for this column, if any. */
-  value: unknown;
+  /**
+   * The committed value for this column, read LIVE.
+   *
+   * A getter rather than a snapshot because the filter row is deliberately not re-rendered when a
+   * value is committed — re-rendering it would take the focus and the caret out of whatever is
+   * being typed. A control that needs to show the committed state therefore has to read it as it
+   * changes, or it drifts: picking a value while the control still says "All", and clearing the
+   * filter while the control still shows what was cleared.
+   */
+  value: () => unknown;
   /** Apply a value for this column. Pass `undefined` or `''` to clear it. */
   commit: (value: unknown) => void;
   api: CellApi;
@@ -42,9 +51,16 @@ interface Option {
 
 const FILTER_CLASS = 'weave-extra-table__filter';
 
-/** A text-ish box that commits on Enter. */
+/**
+ * A text-ish box that commits on Enter.
+ *
+ * Stays UNCONTROLLED while it has the focus: the DOM holds what is being typed, and writing every
+ * keystroke back through the component would move the caret. But it does resync when the committed
+ * value changes from elsewhere — `clearFilters`, a preference load — because a box still showing a
+ * filter that is no longer in force is worse than one that lags a keystroke.
+ */
 function textFilter(props: FilterProps, type: string): Node {
-  let draft: string = props.value == null ? '' : String(props.value);
+  let draft: string = props.value() == null ? '' : String(props.value());
   const node: Node = asNode(
     Input({
       value: draft,
@@ -66,20 +82,40 @@ function textFilter(props: FilterProps, type: string): Node {
       props.commit(draft === '' ? undefined : draft);
     }
   });
+  effect(() => {
+    const committed: unknown = props.value();
+    const field: HTMLInputElement | null =
+      node instanceof Element ? node.querySelector('input') : null;
+    // Never fight the person typing — only a box they are not in gets rewritten.
+    if (!field || document.activeElement === field) return;
+    const next: string = committed == null ? '' : String(committed);
+    if (field.value !== next) {
+      field.value = next;
+      draft = next;
+    }
+  });
   return node;
 }
 
 function selectFilter(props: FilterProps, options: Option[]): Node {
-  const current: string = props.value == null ? '' : String(props.value);
   return asNode(
     Select<Option>({
       options,
-      // A string, not the option object: `<Select>` accepts `string | T` for its value and emits
-      // the VALUE by default (`emit: 'object'` is what returns the object). Reading `.value` off
-      // what it emits therefore reads a property of a string — `undefined` — and every pick
-      // committed an empty filter while still firing a change. Symmetry is the fix: give it a
-      // value, take a value.
-      value: current === '' ? undefined : current,
+      /**
+       * A getter, and a string.
+       *
+       * A getter because `<Select>` reads its value reactively, and passing a plain value makes it a
+       * CONTROLLED component whose prop then never changes — so the trigger kept saying "All" after
+       * a pick, and kept saying the old value after the filter was cleared. Read live, the trigger
+       * always shows what is actually in force.
+       *
+       * A string because `<Select>` takes `string | T` and emits the VALUE by default (`emit:
+       * 'object'` is what returns the object). Give it a value, take a value.
+       */
+      get value(): string | undefined {
+        const current: unknown = props.value();
+        return current == null || current === '' ? undefined : String(current);
+      },
       optionValue: (option: Option): string => option.value,
       optionLabel: (option: Option): string => option.label,
       class: FILTER_CLASS,
