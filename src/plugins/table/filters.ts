@@ -129,6 +129,10 @@ function textFilter(props: FilterProps, type: string): Node {
  * The accessors are optional and their defaults read `item.value` and `item.label`, which is exactly
  * what `Option` is — so dropping them changes nothing at runtime and costs no cast. That is the whole
  * workaround: build options in the shape `<Select>` already assumes.
+ *
+ * It also means `options` here is effectively UNCHECKED — a template or a call passing a malformed
+ * option array compiles clean, because the contract it is checked against is `unknown[]`. Keep
+ * `Option` explicit on the way in, since the compiler will not.
  */
 function selectFilter(props: FilterProps, options: () => Option[]): Node {
   return asNode(

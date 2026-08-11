@@ -241,52 +241,38 @@ how many frames each row costs, and every other long list of `ref`-bearing compo
 
 ---
 
-## W-8 — a generic component's synthesized default export loses its type parameter
+## W-8 — a generic component's props are checked against `unknown`
 
-`@weave-framework/ui` 2.2.0, `select.d.ts`. `setup` is generic and its props are generic, but the
-emitted default is not:
+**Full specification: [w-8-generic-component-props.md](w-8-generic-component-props.md)** — written to
+be handed to the framework repo as-is.
 
-```ts
-export declare function setup<T = { value: string; label: string }>(props: SelectProps<T>): SelectContext<T>;
-declare const _weaveDefault: (props: Parameters<typeof setup>[0], slots?: Record<string, () => Node>) => Node;
-export default _weaveDefault;
-```
+A component whose `setup` is generic ships a default export with the type parameter thrown away. Both
+producers flatten it — `tools/ui-typed-default.mjs` (`Parameters<typeof setup>[0]`, the shipped
+`.d.ts`) and `packages/check/src/emit.ts:493` (`__WeavePropsOf<typeof setup>`, the virtual module) —
+and an uninstantiated generic resolves its parameter to `unknown`, not to the declared default.
 
-`Parameters<typeof setup>` on an *uninstantiated* generic resolves `T` to `unknown` — not to the
-declared default. Two consequences at the call site, both in this package's filter row:
+Affects `autocomplete`, `list`, `select`, `table`, `tabs`, `tree`.
 
-```ts
-Select<Option>({ … })
-// Expected 0 type arguments, but got 1.  (ts2558)
-
-Select({ options, optionValue: (option: Option): string => option.value })
-// Type '(option: Option) => string' is not assignable to type '(item: unknown) => string'.  (ts2322)
-```
-
-So an imperative caller cannot name the option type at all, and any accessor prop has to be written
-against `unknown` and cast back. Inside a template the same component is fine, because the compiler
-does not go through the default's declared type.
-
-**What it should emit** — carry the parameter onto the default:
+The imperative symptom is loud:
 
 ```ts
-declare const _weaveDefault: <T = { value: string; label: string }>(
-  props: SelectProps<T>,
-  slots?: Record<string, () => Node>
-) => Node;
+Select<Option>({ options })                       // TS2558: Expected 0 type arguments, but got 1
+Select({ options, optionValue: (o: Option) => o.value })
+                                                  // TS2322: '(o: Option) => string' vs '(item: unknown) => string'
 ```
 
-This is the same class of gap as W-5 (which fixed the *return* type of the synthesized default);
-this one is its type parameters.
+The template symptom is silent, and worse. `emit.ts:283` checks a tag's props as
+`NonNullable<Parameters<typeof Select>[0]>`, so `options` is `unknown[]` and
 
-**Workaround here**: build options in the shape `<Select>` already assumes
-(`{ value: string; label: string }`) and omit the accessors entirely — their defaults read exactly
-those fields, so nothing changes at runtime and no cast is needed. That works for the filter row and
-would not for a caller whose options are a domain object.
+```ts
+{ options: [{ nothing: 'like an option' }, 42, null] }
+```
 
-### Found while upgrading
+compiles clean. Verified with plain `tsc` against 2.2.0.
 
-Worth recording: this only surfaced when the package stopped linking a local checkout. Under the
-link, `@weave-framework/ui/*` resolved to source whose default export is synthesized by the compiler
-and therefore absent from plain `tsc`'s view — every import raised *"has no default export"*, and
-those errors were being filtered out as link noise. They were hiding two real ones underneath.
+**Correction to an earlier note here**: this was first written up as affecting imperative call sites
+only, on the assumption that a template checks against `setup` rather than against the emitted
+default. It does not. The probe above is what settled it.
+
+**Workaround in this package**: build options in the shape `<Select>` already assumes and omit the
+accessors — their defaults read exactly those fields. Only works because the shape happens to match.
