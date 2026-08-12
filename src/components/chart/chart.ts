@@ -23,6 +23,7 @@ import { resizeSignal, type Size } from '@weave-framework/ui/cdk';
 import { bandScale, extent, linearScale, logScale, timeScale, type BandScale, type Scale } from './scale.js';
 import { layout, type PlotBox } from './layout.js';
 import { areaPath, barPath, linePath, type Pt } from './marks.js';
+import { arcCentroid, arcPath, fitArc, groupTail, layoutArcs, toRadians, type Slice } from './arc.js';
 import { clock, Memory, type Clock } from './motion.js';
 import { chartInk, seriesColor, seriesDash } from './palette.js';
 import type { Accessor, ChartPoint, ChartProps, Curve, ResolvedSeries, SeriesConfig, SeriesType } from './types.js';
@@ -40,6 +41,7 @@ export type {
   ResolvedSeries,
   SeriesConfig,
   SeriesType,
+  ChartType,
   XScaleType,
   YScaleType,
 } from './types.js';
@@ -50,6 +52,8 @@ export type { Clock, ClockOptions } from './motion.js';
 export { PALETTE_SIZE, chartInk, paletteDefault, seriesColor, seriesDash } from './palette.js';
 export { areaPath, barPath, linePath } from './marks.js';
 export type { CurveKind, Pt } from './marks.js';
+export { arcCentroid, arcPath, fitArc, groupTail, layoutArcs, polar, toRadians, TAU } from './arc.js';
+export type { LayoutArcsOptions, Point, Slice } from './arc.js';
 export { layout, widestLabel } from './layout.js';
 export type { LayoutInput, PlotBox } from './layout.js';
 
@@ -94,6 +98,29 @@ export interface DotMark {
   cx: number;
   cy: number;
   color: string;
+}
+
+export interface ArcMark {
+  key: string;
+  d: string;
+  color: string;
+  label: string;
+  value: string;
+  percent: string;
+  /** Centre of the ring band — where a slice's own label goes. */
+  lx: number;
+  ly: number;
+  /** Whether the slice has room for a label inside it. */
+  roomy: boolean;
+  index: number;
+}
+
+export interface RadialView {
+  cx: number;
+  cy: number;
+  arcs: ArcMark[];
+  center: string;
+  centerSub: string;
 }
 
 export interface LegendEntry {
@@ -168,6 +195,10 @@ export interface ChartContext<TRow> {
   bars: () => BarMark[];
   dots: () => DotMark[];
 
+  isRadial: () => boolean;
+  radial: () => RadialView;
+  onSliceEnter: (index: number) => void;
+
   legend: () => LegendEntry[];
   showLegend: () => boolean;
   toggleSeries: (index: number) => void;
@@ -231,7 +262,10 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
         : props.y !== undefined
           ? [{ y: props.y }]
           : [];
-    const defaultType: SeriesType = props.type ?? 'line';
+    // `pie` and `donut` are chart-level, not per-mark: a slice is not something a series can be.
+    // A radial chart still resolves ONE series, because that is where its values come from.
+    const declared = props.type ?? 'line';
+    const defaultType: SeriesType = declared === 'pie' || declared === 'donut' ? 'bar' : declared;
     return configs.map((config, index) => ({
       label: config.label ?? nameOf(config.y, `Series ${index + 1}`),
       type: config.type ?? defaultType,
@@ -622,6 +656,115 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     return index === null ? null : xAt(index);
   });
 
+  /* ────────────────────────── radial: pie and donut ──────────────────────────
+   *
+   * The same `data`, `x` and `y` as everything else — one row per slice, `x` its label, `y` its
+   * value. Nothing about the cartesian machinery above runs for these; the scales and the plot box
+   * have no meaning on a circle. What IS shared is everything a reader notices: the palette, the
+   * clock, the tooltip, the legend and the accessible table. */
+
+  const isRadial: Computed<boolean> = computed(() => props.type === 'pie' || props.type === 'donut');
+
+  const sliceEntries: Computed<{ label: string; value: number; index: number }[]> = computed(() => {
+    const value: ((row: TRow) => number) | undefined = series()[0]?.value;
+    if (!value) return [];
+    const all = rows().map((row, index) => ({
+      label: String(read(props.x, row) ?? ''),
+      value: value(row),
+      index,
+    }));
+    return props.maxSlices ? groupTail(all, props.maxSlices, props.otherLabel ?? 'Other') : all;
+  });
+
+  const slices: Computed<Slice[]> = computed<Slice[]>(() =>
+    layoutArcs(sliceEntries().filter((_, i) => !hidden().has(i)), {
+      start: toRadians(props.startAngle ?? 0),
+      end: toRadians(props.startAngle ?? 0) + ((props.endAngle ?? 360) - (props.startAngle ?? 0)) * (Math.PI / 180),
+      pad: ((props.padAngle ?? 1) * Math.PI) / 180,
+    })
+  );
+
+  const radial: Computed<RadialView> = computed<RadialView>(() => {
+    const w: number = width();
+    const h: number = height();
+    const start: number = toRadians(props.startAngle ?? 0);
+    const finish: number = start + ((props.endAngle ?? 360) - (props.startAngle ?? 0)) * (Math.PI / 180);
+    // Fitted to what the arc actually covers, so a semicircle fills its box instead of floating in
+    // the top half of one.
+    const fitted = fitArc(w, h, start, finish);
+    const cx: number = fitted.cx;
+    const cy: number = fitted.cy;
+    const outer: number = fitted.radius;
+    const innerFraction: number = props.innerRadius ?? (props.type === 'donut' ? 0.62 : 0);
+    const inner: number = outer * Math.min(0.95, Math.max(0, innerFraction));
+    const t: number = motion.progress();
+    const list: Slice[] = slices();
+    const format: (value: number) => string = props.valueFormat ?? ((value: number) => String(value));
+    const hovered: number | null = hoverIndex();
+
+    const arcs: ArcMark[] = list.map((slice, i) => {
+      // Both edges travel, so the whole ring unrolls from the start angle on mount and every edge
+      // slides to its new place on an update. Interpolating only the end would drag the slices
+      // across each other.
+      const from: number = memory.at(`arc-from:${slice.label}`, slice.from, t, start);
+      const to: number = memory.at(`arc-to:${slice.label}`, slice.to, t, start);
+      // The hovered slice steps outward. Cheaper and steadier than scaling it, which moves its
+      // neighbours' apparent size too.
+      const lift: number = hovered === i ? 6 : 0;
+      const mid: number = (from + to) / 2;
+      const ox: number = cx + Math.cos(mid) * lift;
+      const oy: number = cy + Math.sin(mid) * lift;
+      const centroid = arcCentroid(ox, oy, inner, outer, from, to);
+      return {
+        key: `arc-${slice.label}`,
+        d: arcPath(ox, oy, inner, outer, from, to),
+        color: seriesColor(slice.index >= 0 ? slice.index : list.length - 1),
+        label: slice.label,
+        value: format(slice.value),
+        percent: `${Math.round(slice.share * 100)}%`,
+        lx: centroid.x,
+        ly: centroid.y,
+        // A label needs both an arc long enough to sit on and a band deep enough to sit in.
+        roomy: props.sliceLabels !== false && slice.share >= 0.06 && outer - inner >= 22,
+        index: i,
+      };
+    });
+
+    const total: number = list.reduce((sum, slice) => sum + slice.value, 0);
+    const showCenter: boolean = props.type === 'donut' && props.centerLabel !== false;
+    const centerText: string = showCenter
+      ? typeof props.centerLabel === 'string'
+        ? props.centerLabel
+        : format(total)
+      : '';
+    // A partial ring's origin is on its flat edge, not in the middle of what you see — so the total
+    // would sit on the baseline of a gauge rather than inside its opening. Lift it into the arc.
+    const partial: boolean = finish - start <= Math.PI + 1e-6;
+    return {
+      cx,
+      cy: partial ? cy - inner * 0.42 : cy,
+      arcs,
+      center: centerText,
+      centerSub: showCenter && props.centerLabel === undefined ? (props.yLabel ?? 'Total') : '',
+    };
+  });
+
+  const radialTooltip: Computed<TooltipView | null> = computed<TooltipView | null>(() => {
+    if (props.tooltip === false) return null;
+    const index: number | null = hoverIndex();
+    const at: { x: number; y: number } | null = pointer();
+    const list: ArcMark[] = radial().arcs;
+    if (index === null || at === null || !list[index]) return null;
+    const arc: ArcMark = list[index];
+    return {
+      x: at.x,
+      y: at.y,
+      title: arc.label,
+      rows: [{ label: arc.percent, value: arc.value, color: arc.color }],
+      text: undefined,
+    };
+  });
+
   return {
     host,
     props,
@@ -657,32 +800,51 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     bars: (): BarMark[] => bars(),
     dots: (): DotMark[] => dots(),
 
-    showLegend: (): boolean => props.legend !== false && series().length > 1,
+    isRadial: (): boolean => isRadial(),
+    radial: (): RadialView => radial(),
+    onSliceEnter: (index: number): void => {
+      hoverIndex.set(index);
+    },
+
+    // A radial chart legends its SLICES; a cartesian one legends its series. Same control, same
+    // toggle, different list — which is why the legend never had to know which chart it is in.
+    showLegend: (): boolean =>
+      props.legend !== false && (isRadial() ? sliceEntries().length > 1 : series().length > 1),
     legend: (): LegendEntry[] =>
-      series().map((s, index) => ({
-        label: s.label,
-        color: s.color,
-        hidden: hidden().has(index),
-        index,
-      })),
+      isRadial()
+        ? sliceEntries().map((entry, index) => ({
+            label: entry.label,
+            color: seriesColor(entry.index >= 0 ? entry.index : index),
+            hidden: hidden().has(index),
+            index,
+          }))
+        : series().map((s, index) => ({
+            label: s.label,
+            color: s.color,
+            hidden: hidden().has(index),
+            index,
+          })),
     toggleSeries: (index: number): void => {
+      const count: number = isRadial() ? sliceEntries().length : series().length;
       const next: Set<number> = new Set<number>(hidden());
       if (next.has(index)) next.delete(index);
-      // Never hide the last visible series: an empty plot with a full legend reads as broken.
-      else if (next.size < series().length - 1) next.add(index);
+      // Never hide the last visible one: an empty plot with a full legend reads as broken.
+      else if (next.size < count - 1) next.add(index);
       hidden.set(next);
     },
 
-    tooltip: (): TooltipView | null => tooltip(),
-    crosshair: (): number | null => crosshair(),
+    tooltip: (): TooltipView | null => (isRadial() ? radialTooltip() : tooltip()),
+    crosshair: (): number | null => (isRadial() ? null : crosshair()),
     onMove: (event: PointerEvent): void => {
       const element: HTMLElement | null = host();
       if (!element) return;
       const box: DOMRect = element.getBoundingClientRect();
       const x: number = event.clientX - box.left;
       const y: number = event.clientY - box.top;
-      hoverIndex.set(nearest(x));
       pointer.set({ x, y });
+      // On a circle the slice under the pointer is decided by the slice's own `pointerenter`, not
+      // by distance along an axis — a wedge is a shape, not a position.
+      if (!isRadial()) hoverIndex.set(nearest(x));
     },
     onLeave: (): void => {
       hoverIndex.set(null);

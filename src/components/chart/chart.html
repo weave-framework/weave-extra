@@ -12,6 +12,30 @@
       <svg class="weave-chart__svg" width={{ width() }} height={{ height() }}
            role="img" aria-label={{ ariaLabel() }}>
 
+        @if (isRadial()) {
+          @let ring = radial();
+          @for (arc of ring.arcs; track arc.key) {
+            <path class="weave-chart__slice" d={{ arc.d }} fill={{ arc.color }}
+                  on:pointerenter={{ () => onSliceEnter(arc.index) }}>
+              <title>{{ arc.label + ': ' + arc.value + ' (' + arc.percent + ')' }}</title>
+            </path>
+          }
+          @for (arc of ring.arcs; track arc.key) {
+            @if (arc.roomy) {
+              <text class="weave-chart__slice-label" x={{ arc.lx }} y={{ arc.ly }}
+                    text-anchor="middle" dominant-baseline="middle">{{ arc.percent }}</text>
+            }
+          }
+          @if (ring.center) {
+            <text class="weave-chart__center" x={{ ring.cx }} y={{ ring.cy }}
+                  text-anchor="middle" dominant-baseline="middle">{{ ring.center }}</text>
+          }
+          @if (ring.centerSub) {
+            <text class="weave-chart__center-sub" x={{ ring.cx }} y={{ ring.cy + 16 }}
+                  text-anchor="middle" dominant-baseline="middle" fill={{ ink.label }}>{{ ring.centerSub }}</text>
+          }
+        } @else {
+
         @for (line of grid(); track line.key) {
           <line class="weave-chart__grid" x1={{ line.x1 }} y1={{ line.y1 }} x2={{ line.x2 }} y2={{ line.y2 }}
                 stroke={{ ink.grid }} />
@@ -54,6 +78,8 @@
         @for (tick of xTicks(); track tick.key) {
           <text class="weave-chart__label" x={{ tick.x }} y={{ tick.y }} text-anchor={{ tick.anchor }}
                 fill={{ ink.label }}>{{ tick.label }}</text>
+        }
+
         }
       </svg>
 

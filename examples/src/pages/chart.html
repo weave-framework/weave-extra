@@ -91,6 +91,40 @@
   </Demo>
   <CodeTabs id="chart-time" />
 
+  <h2>Pie and donut</h2>
+  <p>
+    Same <code>data</code>, same <code>x</code>, same <code>y</code> — one row per slice, its label
+    and its value. Moving between a bar chart and a donut is one word, which is the whole reason the
+    radial pair lives in this component rather than beside it.
+  </p>
+  <p>
+    Nine categories here, five of them slivers — the shape that makes a pie fail.
+    <code>maxSlices</code> keeps the largest and folds the tail into one, which is what a person
+    would do by hand and keeps the total honest, unlike dropping them. Percentages are written only
+    on slices with room for them; the rest are in the legend, which toggles like any other.
+  </p>
+  <Demo>
+    <!-- #region chart-pie -->
+    <Chart type="donut" data={{ share }} x="product" y="revenue"
+           maxSlices={{ 6 }} valueFormat={{ money }} height={{ 280 }} yLabel="Revenue" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-pie" />
+
+  <p>
+    A donut's hole is not decoration: it removes the wedge apex, which is the part of a pie a reader
+    is worst at comparing, and it buys somewhere to put the total. Setting the angles turns the same
+    component into a semicircle — a gauge is a pie you stopped early.
+  </p>
+  <Demo>
+    <!-- #region chart-semi -->
+    <Chart type="donut" data={{ share }} x="product" y="revenue"
+           startAngle={{ -90 }} endAngle={{ 90 }} innerRadius={{ 0.55 }}
+           maxSlices={{ 4 }} valueFormat={{ money }} height={{ 200 }} legend={{ false }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-semi" />
+
   <h2>What it does without being asked</h2>
   <p>
     <strong>Responsive</strong> — the width follows the container through a <code>ResizeObserver</code>;

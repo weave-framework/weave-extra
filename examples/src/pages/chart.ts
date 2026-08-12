@@ -43,6 +43,24 @@ const READINGS: Reading[] = Array.from({ length: 48 }, (_, i) => ({
   queue: Math.round(12 + Math.cos(i / 4) * 9),
 }));
 
+export interface Share extends Record<string, unknown> {
+  product: string;
+  revenue: number;
+}
+
+/** Nine categories, five of them slivers — the shape that makes a pie chart fail. */
+const SHARE: Share[] = [
+  { product: 'Platform', revenue: 82_000 },
+  { product: 'Support', revenue: 41_000 },
+  { product: 'Training', revenue: 27_000 },
+  { product: 'Add-ons', revenue: 14_000 },
+  { product: 'Consulting', revenue: 9_000 },
+  { product: 'Hosting', revenue: 4_200 },
+  { product: 'Certification', revenue: 2_800 },
+  { product: 'Merch', revenue: 1_400 },
+  { product: 'Misc', revenue: 900 },
+];
+
 export interface ChartPageContext {
   Chart: typeof Chart;
   Button: typeof Button;
@@ -50,6 +68,7 @@ export interface ChartPageContext {
   CodeTabs: typeof CodeTabs;
   months: Computed<Month[]>;
   readings: Reading[];
+  share: Share[];
   reshuffle: () => void;
   money: (value: number) => string;
   twoSeries: SeriesConfig<Month>[];
@@ -69,6 +88,7 @@ export function setup(): ChartPageContext {
     CodeTabs,
     months,
     readings: READINGS,
+    share: SHARE,
     // Changing the data is what proves the animation is an interpolation and not a fade-in: bars
     // travel to their new heights from the old ones.
     reshuffle: (): void => {

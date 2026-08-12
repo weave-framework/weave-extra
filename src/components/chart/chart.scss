@@ -82,6 +82,45 @@
   opacity: 1;
 }
 
+/* ── radial ── */
+
+.weave-chart__slice {
+  // The lift on hover is geometry, not a transform: scaling a slice changes its apparent SIZE, and
+  // a chart whose values grow when you point at them is a chart that lies while you read it.
+  transition: opacity 0.12s;
+  stroke: var(--weave-chart-surface, var(--surface, #fff));
+  stroke-width: 1;
+}
+
+.weave-chart__plot:hover .weave-chart__slice {
+  opacity: 0.9;
+}
+
+.weave-chart__slice:hover {
+  opacity: 1;
+}
+
+.weave-chart__slice-label {
+  font-size: 11px;
+  font-weight: 600;
+  // White on every palette hue: the slice colours are all mid-dark by construction, so one rule
+  // works instead of computing a contrasting colour per slice at render time.
+  fill: #fff;
+  pointer-events: none;
+}
+
+.weave-chart__center {
+  font-size: 20px;
+  font-weight: 600;
+  fill: currentColor;
+  pointer-events: none;
+}
+
+.weave-chart__center-sub {
+  font-size: 11px;
+  pointer-events: none;
+}
+
 .weave-chart__empty {
   display: grid;
   place-items: center;

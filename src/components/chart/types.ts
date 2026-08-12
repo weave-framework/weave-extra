@@ -18,6 +18,13 @@ export type Accessor<TRow, TValue> = string | ((row: TRow) => TValue);
 /** The mark a series is drawn as. Per series, so one chart can mix bars and a trend line. */
 export type SeriesType = 'line' | 'area' | 'bar';
 
+/**
+ * What the chart is. The radial two take the same `data`, `x` and `y` as everything else —
+ * one row per slice, `x` its label, `y` its value — so moving between a bar chart and a donut is
+ * one word.
+ */
+export type ChartType = SeriesType | 'pie' | 'donut';
+
 /** How the points of a line are joined. */
 export type Curve = 'linear' | 'smooth' | 'step';
 
@@ -74,7 +81,7 @@ export interface ChartProps<TRow = Record<string, unknown>> {
   data: readonly TRow[] | (() => readonly TRow[]);
 
   /** Default mark for series that do not name their own. Default `'line'`. */
-  type?: SeriesType;
+  type?: ChartType;
 
   /** The category / time / numeric axis. */
   x: Accessor<TRow, unknown>;
@@ -126,6 +133,34 @@ export interface ChartProps<TRow = Record<string, unknown>> {
   valueFormat?: (value: number) => string;
   /** How an x value is written. Defaults to the scale's own formatting. */
   labelFormat?: (value: unknown) => string;
+
+  /* ── radial only: pie and donut ── */
+
+  /**
+   * Hole size as a fraction of the outer radius. Default 0 for `pie`, 0.62 for `donut`.
+   *
+   * A hole is not decoration: it removes the wedge apex, which is the part of a pie a reader is
+   * worst at comparing, and it buys a place to put the total.
+   */
+  innerRadius?: number;
+  /** First edge in degrees, clockwise from twelve o'clock. Default 0. */
+  startAngle?: number;
+  /** Last edge. Default a full turn. `startAngle={{ -90 }} endAngle={{ 90 }}` is a semicircle. */
+  endAngle?: number;
+  /** Gap between slices in degrees. Clamped so it can never eat the slices themselves. */
+  padAngle?: number;
+  /**
+   * Keep the largest N and fold the rest into one slice.
+   *
+   * The commonest way a pie fails is twenty categories, fifteen of them unreadable slivers.
+   * Grouping the tail is what a person would do by hand.
+   */
+  maxSlices?: number;
+  otherLabel?: string;
+  /** Text in a donut's hole. Defaults to the total. `false` leaves it empty. */
+  centerLabel?: string | false;
+  /** Write a percentage on slices with room for one. Default true. */
+  sliceLabels?: boolean;
 
   /** Text when there is nothing to draw. */
   emptyText?: string;
