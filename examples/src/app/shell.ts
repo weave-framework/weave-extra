@@ -12,7 +12,7 @@
  * extra means one entry in `PAGES` and one `@case`.
  */
 
-import { onMount, signal, type Signal } from '@weave-framework/runtime';
+import { effect, onMount, signal, type Signal } from '@weave-framework/runtime';
 import Toolbar from '@weave-framework/ui/toolbar';
 import Button from '@weave-framework/ui/button';
 import Badge from '@weave-framework/ui/badge';
@@ -74,25 +74,41 @@ export function setup(): ShellContext {
     return () => window.removeEventListener('hashchange', onHashChange);
   });
 
+  const groups = (): string[] => [...new Set(PAGES.map((page) => page.group))];
+
   /**
    * Panel bodies are built as DOM rather than as a template, because `ExpansionContent` takes a Node.
    * Plain anchors, like the docs site's sidebar: a hash link is the whole of the navigation here, and
    * an anchor is what makes it middle-clickable and copyable.
+   *
+   * Built ONCE, here, and each link's class driven by its own effect. A panel body is a Node handed
+   * to `Expansion`, and a Node is mounted once: a class decided while building it is a snapshot, so
+   * the highlight stuck to whichever page the site was loaded on and never moved again, however many
+   * times the content changed underneath it. Rebuilding the list on every change is the other answer
+   * and the wrong one — it throws away the panel's DOM, its scroll position and its focus to restyle
+   * one anchor.
+   *
+   * The effects are created here rather than inside the body callback so they belong to this
+   * component's scope and are torn down with it.
    */
-  const groupLinks = (group: string): Node => {
+  const boxes: Map<string, Node> = new Map<string, Node>();
+  for (const group of groups()) {
     const box: HTMLElement = document.createElement('div');
     box.className = 'nav-group-links';
     for (const page of PAGES.filter((entry) => entry.group === group)) {
       const link: HTMLAnchorElement = document.createElement('a');
-      link.className = page.id === current() ? 'nav-link active' : 'nav-link';
       link.href = `#${page.id}`;
       link.textContent = page.title;
+      effect(() => {
+        link.className = page.id === current() ? 'nav-link active' : 'nav-link';
+        // Announced, not merely coloured: a highlight a screen reader cannot see is decoration.
+        if (page.id === current()) link.setAttribute('aria-current', 'page');
+        else link.removeAttribute('aria-current');
+      });
       box.appendChild(link);
     }
-    return box;
-  };
-
-  const groups = (): string[] => [...new Set(PAGES.map((page) => page.group))];
+    boxes.set(group, box);
+  }
 
   let nav: SidenavApi | null = null;
 
@@ -100,9 +116,8 @@ export function setup(): ShellContext {
 
   return {
     current,
-    // Reading `current()` here is what re-renders the panel bodies with the new active link.
     panels: (): ExpansionPanel[] =>
-      groups().map((group) => ({ id: group, header: group, body: () => groupLinks(group) })),
+      groups().map((group) => ({ id: group, header: group, body: () => boxes.get(group) ?? document.createTextNode('') })),
     openIds: groups,
     setNavApi: (api: SidenavApi): void => {
       nav = api;
