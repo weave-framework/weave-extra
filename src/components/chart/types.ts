@@ -145,6 +145,14 @@ export interface ChartProps<TRow = Record<string, unknown>> {
 
   /** How a value is written on the axis and in the tooltip. */
   valueFormat?: (value: number) => string;
+  /**
+   * How the RIGHT axis writes its values, when a series asked for one.
+   *
+   * A second axis exists because there are two units, so sharing one formatter would undercut the
+   * feature: euros and per cent cannot both be `€{n}k`. Falls back to {@link valueFormat}, then to
+   * the scale's own formatting.
+   */
+  rightFormat?: (value: number) => string;
   /** How an x value is written. Defaults to the scale's own formatting. */
   labelFormat?: (value: unknown) => string;
 

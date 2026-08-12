@@ -72,6 +72,25 @@
   </Demo>
   <CodeTabs id="chart-combo" />
 
+  <h2>Two axes</h2>
+  <p>
+    <code>axis: 'right'</code> puts a series on its own scale, because two units in one chart is a
+    real thing — euros and a percentage here. Sharing one axis is what makes a percentage a flat line
+    along the floor, which is exactly the chart a second axis exists to avoid.
+  </p>
+  <p>
+    Each side takes its domain from its own series alone, and <code>rightFormat</code> writes its own
+    unit. The <strong>grid stays on the left axis</strong>: two sets of gridlines at different
+    intervals is a lattice a reader has to decode before they can read anything.
+  </p>
+  <Demo>
+    <!-- #region chart-dual -->
+    <Chart data={{ months() }} x="month" series={{ dual }}
+           valueFormat={{ money }} rightFormat={{ percent }} height={{ 260 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-dual" />
+
   <h2>A time axis, and a hole in the data</h2>
   <p>
     The x values here are timestamps, and nothing was configured to say so — a number past 1971 in

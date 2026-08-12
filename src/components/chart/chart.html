@@ -115,6 +115,11 @@
                 dominant-baseline="middle" fill={{ ink.label }}>{{ tick.label }}</text>
         }
 
+        @for (tick of rightTicks(); track tick.key) {
+          <text class="weave-chart__label" x={{ tick.x }} y={{ tick.y }} text-anchor={{ tick.anchor }}
+                dominant-baseline="middle" fill={{ ink.label }}>{{ tick.label }}</text>
+        }
+
         @for (tick of xTicks(); track tick.key) {
           <text class="weave-chart__label" x={{ tick.x }} y={{ tick.y }} text-anchor={{ tick.anchor }}
                 fill={{ ink.label }}>{{ tick.label }}</text>

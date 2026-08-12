@@ -232,6 +232,7 @@ export interface ChartContext<TRow> {
   grid: () => GridLine[];
   xTicks: () => AxisTick[];
   yTicks: () => AxisTick[];
+  rightTicks: () => AxisTick[];
   axisLines: () => GridLine[];
   areas: () => PathMark[];
   lines: () => PathMark[];
@@ -377,39 +378,66 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     return s.value(rows()[i]);
   };
 
-  /* ── value domain ── */
-  const yDomain: Computed<[number, number]> = computed<[number, number]>(() => {
+  /* ── value domain, per axis ──
+   *
+   * Two axes, because two units in one chart is a real thing — revenue in euros and margin in per
+   * cent, requests and latency. The alternative is asking the reader to hold one series' scale in
+   * their head while looking at the other's, which they will not do.
+   *
+   * Each side takes its domain from ITS OWN series only. Sharing the extent would defeat the point:
+   * a percentage plotted against a euro axis is a flat line along the bottom, which is exactly the
+   * chart a second axis exists to avoid. */
+
+  const onAxis = (side: 'left' | 'right'): { s: ResolvedSeries<TRow>; index: number }[] =>
+    visible()
+      .map((s, index) => ({ s, index }))
+      .filter(({ s }) => s.axis === side);
+
+  const hasRight: Computed<boolean> = computed(() => onAxis('right').length > 0);
+
+  const domainOf = (side: 'left' | 'right'): [number, number] => {
     const values: number[] = [];
-    visible().forEach((s, index) => {
+    for (const { s, index } of onAxis(side)) {
       rows().forEach((_, i) => {
         const top: number = topOf(index, i);
         if (Number.isFinite(top)) values.push(top);
         if (s.stack) values.push(baseOf(index, i));
       });
-    });
+    }
     const [min, max]: [number, number] = extent(values);
     // Bars encode by length, so their axis starts at zero unless the caller insists otherwise.
-    const zero: boolean = props.zero ?? hasBars();
-    return [props.yMin ?? (zero ? Math.min(0, min) : min), props.yMax ?? Math.max(max, zero ? 0 : max)];
-  });
+    const zero: boolean = props.zero ?? onAxis(side).some(({ s }) => s.type === 'bar');
+    // `yMin`/`yMax` pin the LEFT axis only. A single pair cannot mean two units, and applying it to
+    // both would silently clamp the second one to the first one's numbers.
+    const low: number = side === 'left' ? (props.yMin ?? (zero ? Math.min(0, min) : min)) : zero ? Math.min(0, min) : min;
+    const high: number = side === 'left' ? (props.yMax ?? Math.max(max, zero ? 0 : max)) : Math.max(max, zero ? 0 : max);
+    return [low, high];
+  };
 
   /* ── labels first, then the box, then the scales ──
    * The margins depend on the tick text, and the tick text depends only on the domain — not on the
    * box. So the domain is resolved, its labels are measured, and only then is the plot sized. */
-  const probe: Computed<Scale<number>> = computed(() => makeY([0, 1]));
-
-  const makeY = (range: [number, number]): Scale<number> => {
-    const [min, max]: [number, number] = yDomain();
+  const makeY = (side: 'left' | 'right', range: [number, number]): Scale<number> => {
+    const [min, max]: [number, number] = domainOf(side);
     return props.yType === 'log'
       ? logScale([min, max], range)
       : linearScale([min, max], range, { tickCount: 5 });
   };
 
-  const yLabels: Computed<string[]> = computed<string[]>(() => {
-    const scale: Scale<number> = probe();
-    const format: (value: number) => string = props.valueFormat ?? scale.format;
-    return scale.ticks().map(format);
-  });
+  const probe: Computed<Scale<number>> = computed(() => makeY('left', [0, 1]));
+  const probeRight: Computed<Scale<number>> = computed(() => makeY('right', [0, 1]));
+
+  /** The formatter for a side: the right axis may have its own, since it exists to carry another unit. */
+  const formatFor = (side: 'left' | 'right', scale: Scale<number>): ((value: number) => string) =>
+    side === 'right' ? (props.rightFormat ?? props.valueFormat ?? scale.format) : (props.valueFormat ?? scale.format);
+
+  const labelsFor = (side: 'left' | 'right', scale: Scale<number>): string[] =>
+    scale.ticks().map(formatFor(side, scale));
+
+  const yLabels: Computed<string[]> = computed<string[]>(() => labelsFor('left', probe()));
+  const rightLabels: Computed<string[]> = computed<string[]>(() =>
+    hasRight() ? labelsFor('right', probeRight()) : []
+  );
 
   const xLabels: Computed<string[]> = computed<string[]>(() => {
     const kind: 'time' | 'category' | 'linear' = xKind();
@@ -433,6 +461,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       width: w,
       height: h,
       leftLabels: yLabels(),
+      rightLabels: rightLabels(),
       bottomLabels: xLabels(),
       xTitle: props.xLabel,
       yTitle: props.yLabel,
@@ -441,8 +470,17 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
 
   const yScale: Computed<Scale<number>> = computed(() => {
     const box: PlotBox = plot();
-    return makeY([box.bottom, box.top]);
+    return makeY('left', [box.bottom, box.top]);
   });
+
+  const yScaleRight: Computed<Scale<number>> = computed(() => {
+    const box: PlotBox = plot();
+    return makeY('right', [box.bottom, box.top]);
+  });
+
+  /** The scale a series is drawn against. Every mark asks for it rather than assuming the left one. */
+  const scaleFor = (seriesIndex: number): Scale<number> =>
+    visible()[seriesIndex]?.axis === 'right' ? yScaleRight() : yScale();
 
   /** Category axis, or null when x is continuous. Bars need the band; lines do not. */
   const xBand: Computed<BandScale | null> = computed<BandScale | null>(() => {
@@ -500,7 +538,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
 
   /* ── marks ── */
   const pointsFor = (seriesIndex: number): Pt[] => {
-    const scale: Scale<number> = yScale();
+    const scale: Scale<number> = scaleFor(seriesIndex);
     const box: PlotBox = plot();
     const t: number = motion.progress();
     const zeroY: number = Math.min(box.bottom, Math.max(box.top, scale.to(0)));
@@ -515,14 +553,18 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
 
   const areas: Computed<PathMark[]> = computed<PathMark[]>(() => {
     const box: PlotBox = plot();
-    const scale: Scale<number> = yScale();
-    const baseline: number = Math.min(box.bottom, Math.max(box.top, scale.to(0)));
     return visible()
       .map((s, index) => ({ s, index }))
       .filter(({ s }) => s.type === 'area')
       .map(({ s, index }) => ({
         key: `area-${index}`,
-        d: areaPath(pointsFor(index), baseline, s.curve),
+        // The baseline is this series' OWN zero — a right-axis area closed against the left axis's
+        // zero would be filled to a line that means nothing to it.
+        d: areaPath(
+          pointsFor(index),
+          Math.min(box.bottom, Math.max(box.top, scaleFor(index).to(0))),
+          s.curve
+        ),
         color: s.color,
         width: 0,
         dash: undefined,
@@ -548,7 +590,6 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
 
   const bars: Computed<BarMark[]> = computed<BarMark[]>(() => {
     const band: BandScale | null = xBand();
-    const scale: Scale<number> = yScale();
     const box: PlotBox = plot();
     const t: number = motion.progress();
     const list: ResolvedSeries<TRow>[] = visible();
@@ -563,12 +604,14 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     }
     const slot: number = band ? band.bandwidth : Math.max(4, box.width / Math.max(1, rows().length) * 0.8);
     const each: number = slot / Math.max(1, groups.length);
-    const zeroY: number = Math.min(box.bottom, Math.max(box.top, scale.to(0)));
-    const format: (value: number) => string = props.valueFormat ?? scale.format;
-
     const out: BarMark[] = [];
     for (const index of barSeries) {
       const s: ResolvedSeries<TRow> = list[index];
+      // Each bar series measures against its own axis, so a right-axis bar is drawn to the right
+      // axis's zero and formatted with the right axis's own numbers.
+      const scale: Scale<number> = scaleFor(index);
+      const zeroY: number = Math.min(box.bottom, Math.max(box.top, scale.to(0)));
+      const format: (value: number) => string = formatFor(s.axis, scale);
       const group: number = groups.indexOf(s.stack ?? `solo-${index}`);
       rows().forEach((row, i) => {
         const top: number = topOf(index, i);
@@ -611,6 +654,27 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       y: scale.to(value),
       label: format(value),
       anchor: 'end' as const,
+    }));
+  });
+
+  /**
+   * The right axis's ticks, drawn outside the plot on the other side.
+   *
+   * The GRID stays on the left axis alone. Two sets of gridlines at different intervals is a lattice
+   * a reader has to decode before they can read anything, and the second axis's numbers are legible
+   * from its own labels without one.
+   */
+  const rightTicks: Computed<AxisTick[]> = computed<AxisTick[]>(() => {
+    if (!hasRight()) return [];
+    const scale: Scale<number> = yScaleRight();
+    const box: PlotBox = plot();
+    const format: (value: number) => string = formatFor('right', scale);
+    return scale.ticks().map((value) => ({
+      key: `yr-${value}`,
+      x: box.right + 8,
+      y: scale.to(value),
+      label: format(value),
+      anchor: 'start' as const,
     }));
   });
 
@@ -1052,6 +1116,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     grid: (): GridLine[] => (props.sparkline ? [] : grid()),
     xTicks: (): AxisTick[] => (props.sparkline ? [] : xTicks()),
     yTicks: (): AxisTick[] => (props.sparkline ? [] : yTicks()),
+    rightTicks: (): AxisTick[] => (props.sparkline ? [] : rightTicks()),
     axisLines: (): GridLine[] => (props.sparkline ? [] : axisLines()),
     areas: (): PathMark[] => areas(),
     lines: (): PathMark[] => lines(),

@@ -133,6 +133,8 @@ export interface ChartPageContext {
   stacked: SeriesConfig<Month>[];
   combo: SeriesConfig<Month>[];
   loadSeries: SeriesConfig<Reading>[];
+  dual: SeriesConfig<Month>[];
+  percent: (value: number) => string;
 }
 
 export function setup(): ChartPageContext {
@@ -187,6 +189,16 @@ export function setup(): ChartPageContext {
       { y: 'revenue', label: 'Revenue', type: 'bar' },
       { y: 'cost', label: 'Cost', type: 'line', curve: 'smooth', width: 2 },
     ],
+    // #endregion
+
+    // #region chart-dual
+    // `axis: 'right'` puts a series on its own scale. Revenue is in euros and margin is a
+    // percentage — one axis would flatten the percentage onto the floor.
+    dual: [
+      { y: 'revenue', label: 'Revenue', type: 'bar' },
+      { y: (row: Month): number => Math.round((row.margin / row.revenue) * 1000) / 10, label: 'Margin %', type: 'line', curve: 'smooth', axis: 'right' },
+    ],
+    percent: (value: number): string => `${value.toFixed(0)}%`,
     // #endregion
 
     // #region chart-time
