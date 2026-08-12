@@ -2,14 +2,13 @@
 
 Findings from building `@weave-framework/extra` that belong in the framework rather than around it.
 W-4 … W-7 were reproduced against 2.1.0 and shipped in **2.2.0**. W-8 was reported against 2.2.0 and
-shipped in **3.0.0**, which is a major because closing it properly required narrowing a type. This
-package installs from npm; nothing here is linked.
+shipped in **3.0.0**, which is a major because closing it properly required narrowing a type. W-9
+shipped in **3.0.1**. This package installs from npm; nothing here is linked.
 
 W-1 … W-3 were reported earlier and applied (`c10be506`, `d69a8f77`, `d1b7c6b0`). This file starts at
 W-4.
 
-**Status: W-4 … W-8 are released and verified against this package from npm. W-9 is fixed in the
-framework and awaiting a release; this package still installs 3.0.0, which has the bug.**
+**Status: all released and verified against this package from npm, on 3.0.1.**
 
 | | fix | weave commit |
 |---|---|---|
@@ -18,7 +17,7 @@ framework and awaiting a release; this package still installs 3.0.0, which has t
 | W-6 | `Table` — a second header row | `ac43c6ff` |
 | W-7 | `Table` — a virtual body | `4962a963` |
 | W-8 | a generic component's props no longer collapse to `unknown` | `1fb0dd35` (+ `af4343a0`, the accessors it exposed) |
-| W-9 | every non-decimal numeric literal in a template expression is mis-lexed | `a4b82655` — fixed, not yet released |
+| W-9 | every non-decimal numeric literal in a template expression is mis-lexed | `a4b82655` — released in 3.0.1 |
 
 One more was needed to consume them: `e502f448` (compiler — a comment between the pieces of a split
 template is not a non-static template). Without it the published CLI cannot parse the new `Table`
@@ -329,8 +328,11 @@ Verified against the framework checkout's build, all 32 checks from the spec's a
 - source segments line up — `182_400 + total` maps as one verbatim run `"182_400 + "` plus `"total"`,
   which is criterion 5.
 
-The page that found this compiles clean through the fixed compiler. It keeps `182400` in the markup
-meanwhile, because this package installs the published 3.0.0 and that still has the bug.
+**Released in 3.0.1, and re-verified here against the published compiler rather than against the
+checkout that fixed it.** Asked directly for `182_400`, `0xff`, `0b1010`, `0o17`, `1e6`, `10n` and
+the mixed expression `1_000 + 0xff`: all compile, and — the part that matters, because a silent
+truncation would also "compile" — each emits its literal unchanged, so the expressions evaluate to
+182400, 255, 10, 15, 1000000 and 1255.
 
-**Workaround until a release**: `182400` in the markup, or the literal in `setup()` and a name in the
-template. The same literal in a `.ts` file compiles correctly; it is only the template path.
+The workaround is gone from both example pages: `value={{ 182_400 }}` is back in the markup and the
+tile renders **182.4k**, which is the fix visible in a browser rather than in a compiler's output.
