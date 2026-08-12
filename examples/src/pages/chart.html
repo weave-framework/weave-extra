@@ -125,6 +125,46 @@
   </Demo>
   <CodeTabs id="chart-semi" />
 
+  <h2>Candlesticks</h2>
+  <p>
+    The x axis here is <strong>ordinal, not time</strong>, and that is the difference between a
+    financial chart and a line chart with fancier marks. Markets close: on a continuous time axis a
+    daily chart spends two sevenths of its width drawing weekends, and every candle carries a gap it
+    did not earn. Indexed by bar, "the last 60 sessions" means 60 candles rather than 60 days
+    containing 43 of them.
+  </p>
+  <p>
+    <strong>Wheel to zoom, drag to pan.</strong> Zooming is about the pointer, not the centre — you
+    point at the spike you care about, and it stays under the cursor as the window narrows. The
+    volume pane shares the same axis and the same colours.
+  </p>
+  <Demo>
+    <!-- #region chart-candles -->
+    <Chart type="candlestick" data={{ sessions }} x="day" ohlc={{ ohlc }} volume="v"
+           valueFormat={{ price }} height={{ 320 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-candles" />
+
+  <p>
+    Colour is decided against the <strong>previous close</strong>, not against the bar's own open. A
+    session that opened below yesterday's close and recovered to just above its own open is a down
+    day, and painting it green tells the reader the opposite of what happened.
+  </p>
+
+  <h2>OHLC bars</h2>
+  <p>
+    The same data, one word different. Each bar is a single path — the high–low stroke with a tick
+    left for the open and right for the close — so 500 sessions cost 500 nodes instead of 1,500.
+  </p>
+  <Demo>
+    <!-- #region chart-ohlc -->
+    <Chart type="ohlc" data={{ sessions }} x="day" ohlc={{ ohlc }}
+           valueFormat={{ price }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-ohlc" />
+
   <h2>What it does without being asked</h2>
   <p>
     <strong>Responsive</strong> — the width follows the container through a <code>ResizeObserver</code>;

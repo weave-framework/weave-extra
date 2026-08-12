@@ -3,8 +3,10 @@
     <div class="weave-chart__title">{{ props.title }}</div>
   }
 
-  <div class="weave-chart__plot" style={{ 'height:' + height() + 'px' }}
-       on:pointermove={{ onMove }} on:pointerleave={{ onLeave }} on:click={{ onClick }}>
+  <div class={{ isFinancial() && props.zoom !== false ? 'weave-chart__plot is-draggable' : 'weave-chart__plot' }}
+       style={{ 'height:' + height() + 'px' }}
+       on:pointermove={{ onMove }} on:pointerleave={{ onLeave }} on:click={{ onClick }}
+       on:wheel={{ onWheel }} on:pointerdown={{ onDragStart }}>
 
     @if (!hasData()) {
       <p class="weave-chart__empty">{{ emptyText() }}</p>
@@ -33,6 +35,44 @@
           @if (ring.centerSub) {
             <text class="weave-chart__center-sub" x={{ ring.cx }} y={{ ring.cy + 16 }}
                   text-anchor="middle" dominant-baseline="middle" fill={{ ink.label }}>{{ ring.centerSub }}</text>
+          }
+        } @else if (isFinancial()) {
+          @let fin = financial();
+          @for (line of fin.grid; track line.key) {
+            <line class="weave-chart__grid" x1={{ line.x1 }} y1={{ line.y1 }} x2={{ line.x2 }} y2={{ line.y2 }}
+                  stroke={{ ink.grid }} />
+          }
+          @let fcross = crosshair();
+          @if (fcross !== null) {
+            <line class="weave-chart__crosshair" x1={{ fcross }} y1={{ 0 }} x2={{ fcross }} y2={{ height() }}
+                  stroke={{ ink.grid }} />
+          }
+          @for (volume of fin.volumes; track volume.key) {
+            <rect class="weave-chart__volume" x={{ volume.x }} y={{ volume.y }}
+                  width={{ volume.width }} height={{ volume.height }} fill={{ volume.color }} />
+          }
+          @if (props.type === 'ohlc') {
+            @for (candle of fin.candles; track candle.key) {
+              <path class="weave-chart__ohlc" d={{ candle.d }} stroke={{ candle.color }} fill="none" />
+            }
+          } @else {
+            @for (candle of fin.candles; track candle.key) {
+              <line class="weave-chart__wick" x1={{ candle.wx }} y1={{ candle.wy1 }}
+                    x2={{ candle.wx }} y2={{ candle.wy2 }} stroke={{ candle.color }} />
+            }
+            @for (candle of fin.candles; track candle.key) {
+              <rect class="weave-chart__candle" x={{ candle.x }} y={{ candle.y }}
+                    width={{ candle.width }} height={{ candle.height }} fill={{ candle.color }} />
+            }
+          }
+          <line x1={{ 0 }} y1={{ fin.priceBottom }} x2={{ width() }} y2={{ fin.priceBottom }} stroke={{ ink.axis }} />
+          @for (tick of fin.priceTicks; track tick.key) {
+            <text class="weave-chart__label" x={{ tick.x }} y={{ tick.y }} text-anchor={{ tick.anchor }}
+                  dominant-baseline="middle" fill={{ ink.label }}>{{ tick.label }}</text>
+          }
+          @for (tick of fin.timeTicks; track tick.key) {
+            <text class="weave-chart__label" x={{ tick.x }} y={{ tick.y }} text-anchor={{ tick.anchor }}
+                  fill={{ ink.label }}>{{ tick.label }}</text>
           }
         } @else {
 

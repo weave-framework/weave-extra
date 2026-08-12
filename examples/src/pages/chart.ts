@@ -61,6 +61,42 @@ const SHARE: Share[] = [
   { product: 'Misc', revenue: 900 },
 ];
 
+export interface Session extends Record<string, unknown> {
+  day: string;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
+}
+
+/** 120 sessions of a plausible random walk — enough that the window has somewhere to go. */
+function makeSessions(count: number): Session[] {
+  const out: Session[] = [];
+  let price: number = 124;
+  for (let i: number = 0; i < count; i++) {
+    // Deterministic, so the page looks the same on every load and a screenshot means something.
+    const drift: number = Math.sin(i / 9) * 1.6 + Math.cos(i / 3.3) * 0.9;
+    const open: number = price;
+    const close: number = Math.max(1, open + drift + Math.sin(i * 2.7) * 1.2);
+    const high: number = Math.max(open, close) + Math.abs(Math.cos(i * 1.9)) * 1.4;
+    const low: number = Math.min(open, close) - Math.abs(Math.sin(i * 1.3)) * 1.4;
+    const date: Date = new Date(Date.UTC(2026, 0, 5 + Math.floor(i / 5) * 7 + (i % 5)));
+    out.push({
+      day: date.toISOString().slice(5, 10),
+      o: Math.round(open * 100) / 100,
+      h: Math.round(high * 100) / 100,
+      l: Math.round(low * 100) / 100,
+      c: Math.round(close * 100) / 100,
+      v: Math.round(400_000 + Math.abs(Math.sin(i / 2.1)) * 900_000),
+    });
+    price = close;
+  }
+  return out;
+}
+
+const SESSIONS: Session[] = makeSessions(120);
+
 export interface ChartPageContext {
   Chart: typeof Chart;
   Button: typeof Button;
@@ -69,6 +105,9 @@ export interface ChartPageContext {
   months: Computed<Month[]>;
   readings: Reading[];
   share: Share[];
+  sessions: Session[];
+  ohlc: readonly ['o', 'h', 'l', 'c'];
+  price: (value: number) => string;
   reshuffle: () => void;
   money: (value: number) => string;
   twoSeries: SeriesConfig<Month>[];
@@ -89,6 +128,11 @@ export function setup(): ChartPageContext {
     months,
     readings: READINGS,
     share: SHARE,
+    sessions: SESSIONS,
+    // #region chart-candles
+    ohlc: ['o', 'h', 'l', 'c'] as const,
+    price: (value: number): string => value.toFixed(2),
+    // #endregion
     // Changing the data is what proves the animation is an interpolation and not a fade-in: bars
     // travel to their new heights from the old ones.
     reshuffle: (): void => {

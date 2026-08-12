@@ -23,7 +23,12 @@ export type SeriesType = 'line' | 'area' | 'bar';
  * one row per slice, `x` its label, `y` its value — so moving between a bar chart and a donut is
  * one word.
  */
-export type ChartType = SeriesType | 'pie' | 'donut';
+export type ChartType = SeriesType | 'pie' | 'donut' | 'candlestick' | 'ohlc';
+
+/** Where the four prices live on a row. An array reads as O, H, L, C in that order. */
+export type OhlcAccessors<TRow> =
+  | readonly [Accessor<TRow, number>, Accessor<TRow, number>, Accessor<TRow, number>, Accessor<TRow, number>]
+  | { open: Accessor<TRow, number>; high: Accessor<TRow, number>; low: Accessor<TRow, number>; close: Accessor<TRow, number> };
 
 /** How the points of a line are joined. */
 export type Curve = 'linear' | 'smooth' | 'step';
@@ -133,6 +138,34 @@ export interface ChartProps<TRow = Record<string, unknown>> {
   valueFormat?: (value: number) => string;
   /** How an x value is written. Defaults to the scale's own formatting. */
   labelFormat?: (value: unknown) => string;
+
+  /* ── financial only: candlestick and ohlc ── */
+
+  /**
+   * The four prices. Required by `candlestick` and `ohlc`, ignored by everything else.
+   *
+   *   ohlc={{ ['o', 'h', 'l', 'c'] }}
+   */
+  ohlc?: OhlcAccessors<TRow>;
+  /** Volume, drawn as a subplot under the price pane. Omit for no subplot. */
+  volume?: Accessor<TRow, number>;
+  /** Share of the height the volume pane takes. Default 0.22. */
+  volumeHeight?: number;
+
+  /**
+   * The visible window, as inclusive row indices. Uncontrolled when omitted — the chart owns it.
+   *
+   * A window over BARS, not over time: markets close, and a continuous time axis spends two
+   * sevenths of a daily chart drawing the weekends.
+   */
+  range?: readonly [number, number];
+  onRangeChange?: (range: readonly [number, number]) => void;
+  /** Wheel to zoom, drag to pan. Default true for financial charts. */
+  zoom?: boolean;
+
+  /** Rising and falling colours. Defaults follow `--weave-chart-up` / `--weave-chart-down`. */
+  upColor?: string;
+  downColor?: string;
 
   /* ── radial only: pie and donut ── */
 

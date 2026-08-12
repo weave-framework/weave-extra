@@ -20,10 +20,11 @@
 
 import { computed, effect, onMount, signal, type Computed, type Signal } from '@weave-framework/runtime';
 import { resizeSignal, type Size } from '@weave-framework/ui/cdk';
-import { bandScale, extent, linearScale, logScale, timeScale, type BandScale, type Scale } from './scale.js';
+import { bandScale, compactNumber, extent, linearScale, logScale, timeScale, type BandScale, type Scale } from './scale.js';
 import { layout, type PlotBox } from './layout.js';
 import { areaPath, barPath, linePath, type Pt } from './marks.js';
 import { arcCentroid, arcPath, fitArc, groupTail, layoutArcs, toRadians, type Slice } from './arc.js';
+import { candleBody, clampRange, isUp, ohlcPath, panRange, zoomRange, type Bar, type Range } from './financial.js';
 import { clock, Memory, type Clock } from './motion.js';
 import { chartInk, seriesColor, seriesDash } from './palette.js';
 import type { Accessor, ChartPoint, ChartProps, Curve, ResolvedSeries, SeriesConfig, SeriesType } from './types.js';
@@ -42,6 +43,7 @@ export type {
   SeriesConfig,
   SeriesType,
   ChartType,
+  OhlcAccessors,
   XScaleType,
   YScaleType,
 } from './types.js';
@@ -54,6 +56,8 @@ export { areaPath, barPath, linePath } from './marks.js';
 export type { CurveKind, Pt } from './marks.js';
 export { arcCentroid, arcPath, fitArc, groupTail, layoutArcs, polar, toRadians, TAU } from './arc.js';
 export type { LayoutArcsOptions, Point, Slice } from './arc.js';
+export { candleBody, clampRange, isUp, ohlcPath, panRange, zoomRange } from './financial.js';
+export type { Bar, Range } from './financial.js';
 export { layout, widestLabel } from './layout.js';
 export type { LayoutInput, PlotBox } from './layout.js';
 
@@ -121,6 +125,45 @@ export interface RadialView {
   arcs: ArcMark[];
   center: string;
   centerSub: string;
+}
+
+export interface CandleMark {
+  key: string;
+  /** The high–low wick, as `x1/y1/x2/y2`. */
+  wx: number;
+  wy1: number;
+  wy2: number;
+  /** The body, absent on an OHLC chart. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** The whole bar as one path, used by the OHLC form. */
+  d: string;
+  color: string;
+  up: boolean;
+  index: number;
+}
+
+export interface VolumeMark {
+  key: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+}
+
+export interface FinancialView {
+  candles: CandleMark[];
+  volumes: VolumeMark[];
+  priceTicks: AxisTick[];
+  timeTicks: AxisTick[];
+  grid: GridLine[];
+  /** Bottom edge of the price pane — where its axis line goes. */
+  priceBottom: number;
+  volumeTop: number;
+  hasVolume: boolean;
 }
 
 export interface LegendEntry {
@@ -199,6 +242,11 @@ export interface ChartContext<TRow> {
   radial: () => RadialView;
   onSliceEnter: (index: number) => void;
 
+  isFinancial: () => boolean;
+  financial: () => FinancialView;
+  onWheel: (event: WheelEvent) => void;
+  onDragStart: (event: PointerEvent) => void;
+
   legend: () => LegendEntry[];
   showLegend: () => boolean;
   toggleSeries: (index: number) => void;
@@ -265,7 +313,10 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     // `pie` and `donut` are chart-level, not per-mark: a slice is not something a series can be.
     // A radial chart still resolves ONE series, because that is where its values come from.
     const declared = props.type ?? 'line';
-    const defaultType: SeriesType = declared === 'pie' || declared === 'donut' ? 'bar' : declared;
+    // Only the three marks are per-series. `pie`, `donut`, `candlestick` and `ohlc` are what the
+    // whole chart IS, and none of them is something one series among others could be.
+    const defaultType: SeriesType =
+      declared === 'line' || declared === 'area' || declared === 'bar' ? declared : 'bar';
     return configs.map((config, index) => ({
       label: config.label ?? nameOf(config.y, `Series ${index + 1}`),
       type: config.type ?? defaultType,
@@ -749,6 +800,201 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     };
   });
 
+  /* ────────────────────────── financial: candlestick and OHLC ──────────────────────────
+   *
+   * An ORDINAL x axis, indexed by bar and labelled with time. Markets close: on a continuous time
+   * axis a daily chart spends two sevenths of its width drawing weekends, and every candle carries a
+   * gap it did not earn. Indexing by bar is also what makes the window mean "the last 60 sessions"
+   * rather than "the last 60 days, 43 of which had trading". */
+
+  const isFinancial: Computed<boolean> = computed(
+    () => props.type === 'candlestick' || props.type === 'ohlc'
+  );
+
+  const barAt: Computed<(row: TRow) => Bar> = computed(() => {
+    const spec = props.ohlc;
+    if (!spec) return (): Bar => ({ open: NaN, high: NaN, low: NaN, close: NaN });
+    // `'open' in spec` rather than `Array.isArray`: the array side is a readonly tuple, and
+    // `Array.isArray` widens it to `any[]` instead of narrowing the union.
+    const [o, h, l, c]: readonly Accessor<TRow, number>[] =
+      'open' in spec ? [spec.open, spec.high, spec.low, spec.close] : spec;
+    return (row: TRow): Bar => ({
+      open: asNumber(read(o, row)),
+      high: asNumber(read(h, row)),
+      low: asNumber(read(l, row)),
+      close: asNumber(read(c, row)),
+    });
+  });
+
+  /** The window. Controlled by `range` when given, owned here otherwise. */
+  const ownRange: Signal<Range | null> = signal<Range | null>(null);
+  const range: Computed<Range> = computed<Range>(() => {
+    const count: number = rows().length;
+    if (props.range) return clampRange(props.range, count);
+    return clampRange(ownRange() ?? [0, count - 1], count);
+  });
+
+  const setRange = (next: Range): void => {
+    const clamped: Range = clampRange(next, rows().length);
+    ownRange.set(clamped);
+    props.onRangeChange?.(clamped);
+  };
+
+  const windowRows: Computed<{ row: TRow; index: number }[]> = computed(() => {
+    const [from, to]: Range = range();
+    return rows()
+      .slice(from, to + 1)
+      .map((row, i) => ({ row, index: from + i }));
+  });
+
+  const financial: Computed<FinancialView> = computed<FinancialView>(() => {
+    const w: number = width();
+    const h: number = height();
+    const toBar: (row: TRow) => Bar = barAt();
+    const shown = windowRows();
+    const hasVolume: boolean = props.volume !== undefined;
+
+    const prices: number[] = [];
+    for (const { row } of shown) {
+      const bar: Bar = toBar(row);
+      if (Number.isFinite(bar.high)) prices.push(bar.high);
+      if (Number.isFinite(bar.low)) prices.push(bar.low);
+    }
+    const [low, high]: [number, number] = extent(prices);
+
+    const priceLabels: string[] = linearScale([low, high], [0, 1], { tickCount: 5 })
+      .ticks()
+      .map(props.valueFormat ?? ((value: number) => compactNumber(value, 2)));
+    const timeLabels: string[] = shown.map(({ row }) => String(read(props.x, row) ?? ''));
+
+    const box: PlotBox = layout({
+      width: w,
+      height: h,
+      leftLabels: priceLabels,
+      bottomLabels: timeLabels.slice(-1),
+      xTitle: props.xLabel,
+      yTitle: props.yLabel,
+    });
+
+    // Two panes sharing one x axis, with a gap so the volume bars do not touch the price pane's
+    // axis line and read as part of it.
+    const gap: number = hasVolume ? 10 : 0;
+    const volumeShare: number = hasVolume ? Math.min(0.5, Math.max(0.1, props.volumeHeight ?? 0.22)) : 0;
+    const priceHeight: number = box.height * (1 - volumeShare) - gap;
+    const priceBottom: number = box.top + priceHeight;
+    const volumeTop: number = priceBottom + gap;
+
+    const price: Scale<number> = linearScale([low, high], [priceBottom, box.top], { tickCount: 5 });
+    const band: BandScale = bandScale(
+      shown.map(({ index }) => String(index)),
+      [box.left, box.right],
+      { padding: 0.25 }
+    );
+
+    const up: string = props.upColor ?? 'var(--weave-chart-up, #2f9e6a)';
+    const down: string = props.downColor ?? 'var(--weave-chart-down, #d1483f)';
+    const bodyWidth: number = Math.max(1, band.bandwidth);
+    const tick: number = Math.max(1, bodyWidth / 2);
+
+    const candles: CandleMark[] = shown.map(({ row, index }, i) => {
+      const bar: Bar = toBar(row);
+      const previous: Bar | undefined = index > 0 ? toBar(rows()[index - 1]) : undefined;
+      const rising: boolean = isUp(bar, previous?.close);
+      const cx: number = band.to(String(index));
+      const body = candleBody(cx - bodyWidth / 2, bodyWidth, price.to(bar.open), price.to(bar.close));
+      return {
+        key: `candle-${index}`,
+        wx: cx,
+        wy1: price.to(bar.high),
+        wy2: price.to(bar.low),
+        x: body.x,
+        y: body.y,
+        width: body.width,
+        height: body.height,
+        d: ohlcPath(cx, tick, price.to(bar.high), price.to(bar.low), price.to(bar.open), price.to(bar.close)),
+        color: rising ? up : down,
+        up: rising,
+        index,
+      };
+    });
+
+    const volumes: VolumeMark[] = [];
+    if (hasVolume && props.volume) {
+      const values: number[] = shown.map(({ row }) => asNumber(read(props.volume as Accessor<TRow, number>, row)));
+      const [, maxVolume]: [number, number] = extent(values);
+      const scale: Scale<number> = linearScale([0, maxVolume], [box.bottom, volumeTop], { tickCount: 2 });
+      shown.forEach(({ index }, i) => {
+        const value: number = values[i];
+        if (!Number.isFinite(value)) return;
+        const y: number = scale.to(value);
+        volumes.push({
+          key: `vol-${index}`,
+          x: band.to(String(index)) - bodyWidth / 2,
+          y,
+          width: bodyWidth,
+          height: Math.max(1, box.bottom - y),
+          color: candles[i]?.color ?? up,
+        });
+      });
+    }
+
+    const format: (value: number) => string = props.valueFormat ?? ((value: number) => compactNumber(value, 2));
+    const priceTicks: AxisTick[] = price.ticks().map((value) => ({
+      key: `p-${value}`,
+      x: box.left - 8,
+      y: price.to(value),
+      label: format(value),
+      anchor: 'end' as const,
+    }));
+
+    // Labels come off the ROW's own x value, thinned to what fits — the axis is ordinal, so there
+    // is nothing to interpolate a tick position from.
+    const label: (value: unknown) => string = props.labelFormat ?? ((value: unknown) => String(value ?? ''));
+    const fit: number = Math.max(1, Math.floor(box.width / 72));
+    const stride: number = Math.max(1, Math.ceil(shown.length / fit));
+    const timeTicks: AxisTick[] = shown
+      .filter((_, i) => i % stride === 0)
+      .map(({ row, index }) => ({
+        key: `t-${index}`,
+        x: band.to(String(index)),
+        y: box.bottom + 14,
+        label: label(read(props.x, row)),
+        anchor: 'middle' as const,
+      }));
+
+    const grid: GridLine[] =
+      props.grid === false
+        ? []
+        : priceTicks.map((t) => ({ key: `g-${t.key}`, x1: box.left, y1: t.y, x2: box.right, y2: t.y }));
+
+    return { candles, volumes, priceTicks, timeTicks, grid, priceBottom, volumeTop, hasVolume };
+  });
+
+  const financialTooltip: Computed<TooltipView | null> = computed<TooltipView | null>(() => {
+    if (props.tooltip === false) return null;
+    const index: number | null = hoverIndex();
+    const at: { x: number; y: number } | null = pointer();
+    if (index === null || at === null) return null;
+    const row: TRow | undefined = rows()[index];
+    if (!row) return null;
+    const bar: Bar = barAt()(row);
+    const format: (value: number) => string = props.valueFormat ?? ((value: number) => compactNumber(value, 2));
+    const label: (value: unknown) => string = props.labelFormat ?? ((value: unknown) => String(value ?? ''));
+    const color: string = financial().candles.find((candle) => candle.index === index)?.color ?? '';
+    return {
+      x: at.x,
+      y: at.y,
+      title: label(read(props.x, row)),
+      rows: [
+        { label: 'O', value: format(bar.open), color },
+        { label: 'H', value: format(bar.high), color },
+        { label: 'L', value: format(bar.low), color },
+        { label: 'C', value: format(bar.close), color },
+      ],
+      text: undefined,
+    };
+  });
+
   const radialTooltip: Computed<TooltipView | null> = computed<TooltipView | null>(() => {
     if (props.tooltip === false) return null;
     const index: number | null = hoverIndex();
@@ -770,7 +1016,9 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     props,
     width,
     height,
-    hasData: (): boolean => rows().length > 0 && series().length > 0,
+    // A financial chart declares its values through `ohlc`, not through a series — so requiring one
+    // would report a perfectly good candlestick as empty.
+    hasData: (): boolean => rows().length > 0 && (series().length > 0 || (isFinancial() && props.ohlc !== undefined)),
     emptyText: (): string => props.emptyText ?? 'No data',
 
     ariaLabel: (): string => {
@@ -806,6 +1054,48 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       hoverIndex.set(index);
     },
 
+    isFinancial: (): boolean => isFinancial(),
+    financial: (): FinancialView => financial(),
+    /**
+     * Wheel to zoom, about the pointer.
+     *
+     * `preventDefault` because a chart that scrolls the page while you are zooming it is unusable —
+     * but only when zooming is actually on, so a page of small read-only charts still scrolls.
+     */
+    onWheel: (event: WheelEvent): void => {
+      if (!isFinancial() || props.zoom === false) return;
+      const element: HTMLElement | null = host();
+      if (!element) return;
+      event.preventDefault();
+      const box: DOMRect = element.getBoundingClientRect();
+      const at: number = (event.clientX - box.left) / (box.width || 1);
+      setRange(zoomRange(range(), rows().length, event.deltaY > 0 ? 1.2 : 1 / 1.2, at));
+    },
+    /**
+     * Drag to pan, in whole bars.
+     *
+     * Listeners go on the window rather than the chart so a drag that leaves the element still
+     * pans and still ends — the pointer does not stay captured by an element it is no longer over.
+     */
+    onDragStart: (event: PointerEvent): void => {
+      if (!isFinancial() || props.zoom === false) return;
+      const element: HTMLElement | null = host();
+      if (!element) return;
+      const startX: number = event.clientX;
+      const startRange: Range = range();
+      const perBar: number = (element.getBoundingClientRect().width || 1) / Math.max(1, startRange[1] - startRange[0] + 1);
+      const move = (moved: PointerEvent): void => {
+        const bars: number = Math.round((startX - moved.clientX) / perBar);
+        setRange(panRange(startRange, rows().length, bars));
+      };
+      const up = (): void => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    },
+
     // A radial chart legends its SLICES; a cartesian one legends its series. Same control, same
     // toggle, different list — which is why the legend never had to know which chart it is in.
     showLegend: (): boolean =>
@@ -833,8 +1123,16 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       hidden.set(next);
     },
 
-    tooltip: (): TooltipView | null => (isRadial() ? radialTooltip() : tooltip()),
-    crosshair: (): number | null => (isRadial() ? null : crosshair()),
+    tooltip: (): TooltipView | null =>
+      isRadial() ? radialTooltip() : isFinancial() ? financialTooltip() : tooltip(),
+    crosshair: (): number | null => {
+      if (isRadial()) return null;
+      if (isFinancial()) {
+        const index: number | null = hoverIndex();
+        return financial().candles.find((candle) => candle.index === index)?.wx ?? null;
+      }
+      return crosshair();
+    },
     onMove: (event: PointerEvent): void => {
       const element: HTMLElement | null = host();
       if (!element) return;
@@ -844,7 +1142,23 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       pointer.set({ x, y });
       // On a circle the slice under the pointer is decided by the slice's own `pointerenter`, not
       // by distance along an axis — a wedge is a shape, not a position.
-      if (!isRadial()) hoverIndex.set(nearest(x));
+      if (isRadial()) return;
+      if (isFinancial()) {
+        // Nearest by drawn position among the VISIBLE bars: the window means the index under the
+        // pointer is not the index in the data.
+        let best: number | null = null;
+        let bestDistance: number = Infinity;
+        for (const candle of financial().candles) {
+          const distance: number = Math.abs(candle.wx - x);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = candle.index;
+          }
+        }
+        hoverIndex.set(best);
+        return;
+      }
+      hoverIndex.set(nearest(x));
     },
     onLeave: (): void => {
       hoverIndex.set(null);

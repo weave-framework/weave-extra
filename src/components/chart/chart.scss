@@ -82,6 +82,47 @@
   opacity: 1;
 }
 
+/* ── financial ── */
+
+.weave-chart {
+  // Rising and falling. Their own tokens rather than palette slots: they are not categories, they
+  // are a direction, and some markets read the pair the other way round — which is a theme override
+  // rather than a fork of the component.
+  --weave-chart-up: #2f9e6a;
+  --weave-chart-down: #d1483f;
+}
+
+[data-theme='dark'] .weave-chart {
+  --weave-chart-up: #4bbd8a;
+  --weave-chart-down: #e8695f;
+}
+
+.weave-chart__plot.is-draggable {
+  cursor: grab;
+  // A wheel over a zoomable chart must not also scroll the page. Declaring it here as well as
+  // calling preventDefault lets the browser skip the passive-listener check.
+  touch-action: none;
+}
+
+.weave-chart__plot.is-draggable:active {
+  cursor: grabbing;
+}
+
+.weave-chart__wick,
+.weave-chart__ohlc {
+  stroke-width: 1;
+  // Crisp at any zoom: a half-pixel wick renders as two grey pixels instead of one solid one.
+  shape-rendering: crispEdges;
+}
+
+.weave-chart__candle {
+  shape-rendering: crispEdges;
+}
+
+.weave-chart__volume {
+  opacity: 0.35;
+}
+
 /* ── radial ── */
 
 .weave-chart__slice {
