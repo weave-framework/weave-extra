@@ -1,0 +1,116 @@
+<div class="weave-chart" ref={{ host }}>
+  @if (props.title) {
+    <div class="weave-chart__title">{{ props.title }}</div>
+  }
+
+  <div class="weave-chart__plot" style={{ 'height:' + height() + 'px' }}
+       on:pointermove={{ onMove }} on:pointerleave={{ onLeave }} on:click={{ onClick }}>
+
+    @if (!hasData()) {
+      <p class="weave-chart__empty">{{ emptyText() }}</p>
+    } @else {
+      <svg class="weave-chart__svg" width={{ width() }} height={{ height() }}
+           role="img" aria-label={{ ariaLabel() }}>
+
+        @for (line of grid(); track line.key) {
+          <line class="weave-chart__grid" x1={{ line.x1 }} y1={{ line.y1 }} x2={{ line.x2 }} y2={{ line.y2 }}
+                stroke={{ ink.grid }} />
+        }
+
+        @let cross = crosshair();
+        @if (cross !== null) {
+          <line class="weave-chart__crosshair" x1={{ cross }} y1={{ 0 }} x2={{ cross }} y2={{ height() }}
+                stroke={{ ink.grid }} />
+        }
+
+        @for (area of areas(); track area.key) {
+          <path d={{ area.d }} fill={{ area.fill }} fill-opacity={{ area.opacity }} stroke="none" />
+        }
+
+        @for (bar of bars(); track bar.key) {
+          <path class="weave-chart__bar" d={{ bar.d }} fill={{ bar.color }}>
+            <title>{{ bar.label + ': ' + bar.value }}</title>
+          </path>
+        }
+
+        @for (line of lines(); track line.key) {
+          <path class="weave-chart__line" d={{ line.d }} fill="none" stroke={{ line.color }}
+                stroke-width={{ line.width }} stroke-dasharray={{ line.dash }} />
+        }
+
+        @for (dot of dots(); track dot.key) {
+          <circle class="weave-chart__dot" cx={{ dot.cx }} cy={{ dot.cy }} r={{ 3 }} fill={{ dot.color }} />
+        }
+
+        @for (axis of axisLines(); track axis.key) {
+          <line x1={{ axis.x1 }} y1={{ axis.y1 }} x2={{ axis.x2 }} y2={{ axis.y2 }} stroke={{ ink.axis }} />
+        }
+
+        @for (tick of yTicks(); track tick.key) {
+          <text class="weave-chart__label" x={{ tick.x }} y={{ tick.y }} text-anchor={{ tick.anchor }}
+                dominant-baseline="middle" fill={{ ink.label }}>{{ tick.label }}</text>
+        }
+
+        @for (tick of xTicks(); track tick.key) {
+          <text class="weave-chart__label" x={{ tick.x }} y={{ tick.y }} text-anchor={{ tick.anchor }}
+                fill={{ ink.label }}>{{ tick.label }}</text>
+        }
+      </svg>
+
+      @let tip = tooltip();
+      @if (tip) {
+        <div class="weave-chart__tooltip" style={{ 'left:' + tip.x + 'px; top:' + tip.y + 'px' }} aria-hidden="true">
+          @if (tip.text) {
+            <span class="weave-chart__tip-text">{{ tip.text }}</span>
+          } @else {
+            <div class="weave-chart__tip-title">{{ tip.title }}</div>
+            @for (row of tip.rows; track row.label) {
+              <div class="weave-chart__tip-row">
+                <span class="weave-chart__swatch" style={{ 'background:' + row.color }}></span>
+                <span class="weave-chart__tip-label">{{ row.label }}</span>
+                <span class="weave-chart__tip-value">{{ row.value }}</span>
+              </div>
+            }
+          }
+        </div>
+      }
+    }
+  </div>
+
+  @if (showLegend()) {
+    <div class="weave-chart__legend" role="group" aria-label="Series">
+      @for (entry of legend(); track entry.label) {
+        <button type="button" class={{ entry.hidden ? 'weave-chart__legend-item is-off' : 'weave-chart__legend-item' }}
+                aria-pressed={{ entry.hidden ? 'false' : 'true' }}
+                on:click={{ () => toggleSeries(entry.index) }}>
+          <span class="weave-chart__swatch" style={{ 'background:' + entry.color }}></span>
+          {{ entry.label }}
+        </button>
+      }
+    </div>
+  }
+
+  @if (showTable()) {
+    <table class="weave-chart__data">
+      <caption>{{ ariaLabel() }}</caption>
+      <thead>
+        <tr>
+          <th scope="col">{{ props.xLabel ?? 'x' }}</th>
+          @for (entry of legend(); track entry.label) {
+            <th scope="col">{{ entry.label }}</th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of describedRows(); track row.x) {
+          <tr>
+            <th scope="row">{{ row.x }}</th>
+            @for (cell of row.values; track cell.label) {
+              <td>{{ cell.value }}</td>
+            }
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</div>

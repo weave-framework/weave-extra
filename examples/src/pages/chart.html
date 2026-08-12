@@ -1,0 +1,107 @@
+<article>
+  <h1>Chart</h1>
+  <p class="lead">
+    One component, every cartesian chart. Responsive, animated, themed and keyboard-reachable without
+    being asked — those are not features to opt into, they are what "a chart" means.
+  </p>
+  <p>
+    This is stage one: the engine (scales, ticks, the animation clock, the palette, tooltip, legend,
+    accessibility) and the three marks that ride on it. Pie and donut, candlesticks and OHLC, and the
+    infographic set come next, on this same engine.
+  </p>
+
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ reshuffle }}>Change the data</Button>
+    <span class="demo-note">
+      Watch the bars travel rather than redraw — the clock interpolates from where each one was.
+    </span>
+  </div>
+
+  <h2>One line</h2>
+  <p>
+    The whole point of the API. No axis configuration, no margins, no colour, no tooltip wiring — the
+    value axis rounds itself outward to readable numbers, starts at zero because bars encode by
+    length, and the labels are measured so the margin fits them exactly.
+  </p>
+  <Demo>
+    <!-- #region chart-minimal -->
+    <Chart type="bar" data={{ months() }} x="month" y="revenue" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-minimal" />
+
+  <h2>Several series</h2>
+  <p>
+    <code>series</code> replaces <code>y</code>. Each entry may override the chart's type, its curve,
+    its colour and its width. The legend appears on its own once there is more than one series, and
+    clicking an entry hides it — the last visible series refuses to hide, because an empty plot under
+    a full legend reads as broken rather than as a choice.
+  </p>
+  <Demo>
+    <!-- #region chart-two-series -->
+    <Chart type="line" data={{ months() }} x="month" series={{ twoSeries }}
+           valueFormat={{ money }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-two-series" />
+
+  <h2>Stacked</h2>
+  <p>
+    Series sharing a <code>stack</code> name stack together; a series without one never stacks. A name
+    rather than a boolean, because a chart with two stacked pairs is a real thing and the boolean
+    version ends up needing the name anyway.
+  </p>
+  <Demo>
+    <!-- #region chart-stacked -->
+    <Chart data={{ months() }} x="month" series={{ stacked }}
+           valueFormat={{ money }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-stacked" />
+
+  <h2>Combo</h2>
+  <p>
+    Per-series <code>type</code> is the whole of combo-chart support — bars with a trend line over
+    them is two entries in the same array, not a different component.
+  </p>
+  <Demo>
+    <!-- #region chart-combo -->
+    <Chart data={{ months() }} x="month" series={{ combo }}
+           valueFormat={{ money }} height={{ 240 }} grid="y" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-combo" />
+
+  <h2>A time axis, and a hole in the data</h2>
+  <p>
+    The x values here are timestamps, and nothing was configured to say so — a number past 1971 in
+    milliseconds is read as time, and the ticks land on the hour rather than on the first reading.
+    <strong>Load</strong> has four missing hours, and the line breaks there. Interpolating across a
+    gap would draw a smooth climb through data that does not exist.
+  </p>
+  <p>
+    <strong>Smooth</strong> is monotone, not cardinal: the curve cannot overshoot its own points. The
+    usual spline through 10, 90, 10 renders a peak above 90, which is a chart showing a value nobody
+    measured.
+  </p>
+  <Demo>
+    <!-- #region chart-time -->
+    <Chart data={{ readings }} x="at" series={{ loadSeries }} height={{ 260 }} grid="y" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-time" />
+
+  <h2>What it does without being asked</h2>
+  <p>
+    <strong>Responsive</strong> — the width follows the container through a <code>ResizeObserver</code>;
+    only the height is yours. <strong>Themed</strong> — every colour is a CSS custom property with a
+    light default, so the palette follows the page's dark mode and any one slot can be overridden from
+    an ancestor. <strong>Animated</strong> — one clock per chart drives every mark, and
+    <code>prefers-reduced-motion</code> turns it off rather than merely speeding it up.
+  </p>
+  <p>
+    <strong>Accessible</strong> — the plot is <code>role="img"</code> with a generated label, and under
+    100 rows it is followed by a real data table, present for a screen reader and absent from the page.
+    A paragraph describing a chart is not access; the numbers are.
+  </p>
+</article>

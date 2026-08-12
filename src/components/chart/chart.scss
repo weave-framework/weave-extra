@@ -1,0 +1,190 @@
+// `<Chart>` — the chrome around the plot. The plot's own colours come from custom properties
+// (see palette.ts), so a consumer restyles a chart without touching this file or the component.
+
+.weave-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  inline-size: 100%;
+  // The eight palette slots, light theme. Declared here rather than in the SVG so a consumer can
+  // override any one of them from an ancestor — a custom property set closer to the element wins.
+  --weave-chart-1: #4c6286;
+  --weave-chart-2: #c2703a;
+  --weave-chart-3: #3e8e5a;
+  --weave-chart-4: #8a5ba8;
+  --weave-chart-5: #c2403a;
+  --weave-chart-6: #2f8a8a;
+  --weave-chart-7: #97733a;
+  --weave-chart-8: #6b7280;
+}
+
+// The same hues, lifted and desaturated. A saturated colour that reads as solid on white glows on
+// near-black, and a chart of glowing lines is unreadable at any length.
+[data-theme='dark'] .weave-chart,
+.weave-chart[data-theme='dark'] {
+  --weave-chart-1: #7b96c4;
+  --weave-chart-2: #e0996a;
+  --weave-chart-3: #62b585;
+  --weave-chart-4: #b18ccc;
+  --weave-chart-5: #e0736c;
+  --weave-chart-6: #55b3b3;
+  --weave-chart-7: #c2a065;
+  --weave-chart-8: #9aa0aa;
+}
+
+.weave-chart__title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.weave-chart__plot {
+  position: relative;
+  inline-size: 100%;
+}
+
+.weave-chart__svg {
+  display: block;
+  overflow: visible;
+}
+
+.weave-chart__grid {
+  stroke-width: 1;
+  // Hairlines under the marks, not competing with them. Any heavier and the grid reads as data.
+  opacity: 0.5;
+}
+
+.weave-chart__crosshair {
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
+.weave-chart__label {
+  font-size: 11px;
+  font-family: inherit;
+}
+
+.weave-chart__line {
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.weave-chart__bar,
+.weave-chart__dot {
+  transition: opacity 0.12s;
+}
+
+.weave-chart__plot:hover .weave-chart__bar {
+  opacity: 0.85;
+}
+
+.weave-chart__bar:hover {
+  opacity: 1;
+}
+
+.weave-chart__empty {
+  display: grid;
+  place-items: center;
+  block-size: 100%;
+  margin: 0;
+  color: var(--fg-soft, #71727a);
+  font-size: 12px;
+}
+
+/* ── tooltip ── */
+
+.weave-chart__tooltip {
+  position: absolute;
+  z-index: 2;
+  // Offset from the pointer so the cursor never sits on top of the value it is asking about.
+  transform: translate(12px, -50%);
+  min-inline-size: 120px;
+  padding: 6px 8px;
+  border: 1px solid var(--border, rgba(20, 22, 28, 0.16));
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 12%);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.weave-chart__tip-title {
+  margin-block-end: 4px;
+  color: var(--fg-soft, #71727a);
+  font-size: 11px;
+}
+
+.weave-chart__tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.weave-chart__tip-label {
+  flex: 1 1 auto;
+}
+
+.weave-chart__tip-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.weave-chart__swatch {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+/* ── legend ── */
+
+.weave-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.weave-chart__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.weave-chart__legend-item:hover {
+  background: var(--surface, #fff);
+}
+
+.weave-chart__legend-item.is-off {
+  opacity: 0.45;
+}
+
+.weave-chart__legend-item.is-off .weave-chart__swatch {
+  background: var(--fg-soft, #71727a) !important;
+}
+
+.weave-chart__legend-item:focus-visible {
+  outline: 2px solid var(--accent, #4c6286);
+  outline-offset: 1px;
+}
+
+/* ── the accessible data table: reachable by a screen reader, absent from the page ── */
+
+.weave-chart__data {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
