@@ -519,3 +519,15 @@ $topbar-h: var(--weave-toolbar-height, 52px);
   gap: var(--space-4, 16px);
   inline-size: 100%;
 }
+
+/**
+ * A deliberately cramped column, for the one demo whose subject is what happens when there is not
+ * enough room. `labelRotate="auto"` measures, so showing it working means giving it a width where
+ * the labels genuinely collide — at full page width they do not, and the demo would show nothing.
+ */
+.chart-narrow {
+  // An explicit size, not a max: the demo stage is a flex row, and a block whose only content is a
+  // chart sized to its parent has no intrinsic width to be capped — it collapses to nothing.
+  inline-size: 360px;
+  max-inline-size: 100%;
+}

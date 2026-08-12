@@ -211,6 +211,11 @@ With rotation on, thinning stops — turning is what buys the room, so dropping 
 would throw away exactly what the rotation was for. The bottom margin grows by the label's own
 length projected onto the vertical.
 
+The measurement is per **slot**, not per axis: the question is whether one label fits between its
+two neighbours. So `'auto'` is a function of the width, and the same chart can turn its labels in a
+sidebar and leave them flat across a page. It applies to a category axis only — a time or numeric
+axis chooses how many ticks to place, so it can thin instead. An explicit angle always wins.
+
 ### 4.5 Formatting
 
 ```ts

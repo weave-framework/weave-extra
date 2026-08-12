@@ -502,7 +502,18 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     return scale.ticks().map(scale.format);
   });
 
-  const plot: Computed<PlotBox> = computed<PlotBox>(() => {
+  /**
+   * The box before rotation is taken into account — and the reason there are two of these.
+   *
+   * `'auto'` has to measure a label against the slot it sits in, which means it needs the box; the
+   * box reserves height for turned labels, which means it needs the angle. Asking the same computed
+   * for both is a cycle, and one that only bites when the angle can actually flip: the margin grows,
+   * the slot changes, the answer changes back, and the graph recurses until the stack gives out.
+   *
+   * It is a false cycle. Rotation only ever changes the box's HEIGHT, and the slot only depends on
+   * its width — so the horizontal half is settled here, before any angle exists.
+   */
+  const baseBox: Computed<PlotBox> = computed<PlotBox>(() => {
     const w: number = width();
     const h: number = height();
     // A sparkline gives its whole box to the marks. One pixel of inset, so a 2px stroke is not
@@ -510,7 +521,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     if (props.sparkline) {
       return { left: 1, top: 1, width: Math.max(1, w - 2), height: Math.max(1, h - 2), right: w - 1, bottom: h - 1 };
     }
-    const box: PlotBox = layout({
+    return layout({
       width: w,
       height: h,
       leftLabels: yLabels(),
@@ -519,6 +530,11 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       xTitle: props.xLabel,
       yTitle: props.yLabel,
     });
+  });
+
+  const plot: Computed<PlotBox> = computed<PlotBox>(() => {
+    const box: PlotBox = baseBox();
+    if (props.sparkline) return box;
     const angle: number = labelAngle();
     if (angle === 0) return box;
     // Turned text is as tall as its own length projected onto the vertical — reserve that, or the
@@ -749,10 +765,21 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     const setting = props.labelRotate;
     if (setting === undefined) return 0;
     if (typeof setting === 'number') return setting;
-    const band: BandScale | null = xBand();
-    if (!band) return 0;
-    const labels: string[] = band.domain.map((value) => String(value));
-    return widestLabel(labels) > band.range[1] - band.range[0] ? -45 : 0;
+    if (xKind() !== 'category') return 0;
+    const write: (value: unknown) => string =
+      props.labelFormat ?? ((value: unknown) => String(value ?? ''));
+    const labels: string[] = xValues().map(write);
+    /**
+     * Measured against one SLOT, not against the axis.
+     *
+     * Against the full width a label never fails to fit — twelve months over 700px would each have
+     * to be 700px wide to trigger it — so `'auto'` quietly never fired and the option read as
+     * broken. The question it is actually asking is whether a label fits between its two
+     * neighbours, plus the gap that keeps them from touching.
+     */
+    const box: PlotBox = baseBox();
+    const slot: number = Math.abs(box.right - box.left) / Math.max(1, labels.length);
+    return widestLabel(labels) + 8 > slot ? -45 : 0;
   });
 
   const xTicks: Computed<AxisTick[]> = computed<AxisTick[]>(() => {

@@ -1,0 +1,412 @@
+<article>
+  <h1>Chart recipes</h1>
+  <p class="lead">
+    One feature per section. Each chart below is configured for exactly that feature and nothing else,
+    and each snippet is complete — copy a block and it runs.
+  </p>
+  <p>
+    The <a href="#chart">Chart</a> page is the opposite of this one: the surface in order, every demo
+    sharing one dataset and one set of formatters. That shape is right for seeing what exists and wrong
+    for learning any one thing. The written reference is <code>docs/chart.md</code>.
+  </p>
+
+  <h2>0. The rows</h2>
+  <p>
+    Twelve months, four fields. Every section from 1 to 12 draws these and nothing else, so the only
+    thing that changes between them is the props. Rows are plain objects — no wrapper type, no
+    <code>Dataset</code>, no adapter.
+  </p>
+  <CodeTabs id="cr-rows" />
+
+  <h2>1. The smallest chart that works</h2>
+  <p>
+    Four attributes. No axis configuration, no margins, no colour, no tooltip wiring: the value axis
+    rounds itself outward to readable numbers, starts at zero because bars encode by length, and the
+    label margin is measured from the labels themselves.
+  </p>
+  <Demo>
+    <!-- #region cr-minimal -->
+    <Chart type="bar" data={{ rows }} x="month" y="revenue" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-minimal" />
+
+  <h2>2. Writing the values</h2>
+  <p>
+    <code>valueFormat</code> writes the axis <em>and</em> the tooltip, so a unit is declared once and
+    cannot disagree with itself. <code>labelFormat</code> does the same for the x values.
+  </p>
+  <Demo>
+    <!-- #region cr-format -->
+    <Chart type="bar" data={{ rows }} x="month" y="revenue"
+           valueFormat={{ money }} yLabel="Revenue" height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-format" />
+
+  <h2>3. More than one series</h2>
+  <p>
+    <code>series</code> replaces <code>y</code>. The legend appears on its own once there is more than
+    one, and clicking an entry hides it — the last visible series refuses to hide, because an empty
+    plot under a full legend reads as broken rather than as a choice.
+  </p>
+  <Demo>
+    <!-- #region cr-series -->
+    <Chart type="line" data={{ rows }} x="month" series={{ twoSeries }}
+           valueFormat={{ money }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-series" />
+
+  <h2>4. Stacking</h2>
+  <p>
+    Series sharing a <code>stack</code> name stack together; a series without one never stacks. A name
+    rather than a boolean, because a chart with two stacked pairs is a real thing and the boolean
+    version ends up needing the name anyway.
+  </p>
+  <Demo>
+    <!-- #region cr-stacked -->
+    <Chart data={{ rows }} x="month" series={{ stacked }}
+           valueFormat={{ money }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-stacked" />
+
+  <h2>5. Bars and a line together</h2>
+  <p>
+    Per-series <code>type</code> is the whole of combo-chart support — bars with a trend over them is
+    two entries in one array, not a different component.
+  </p>
+  <Demo>
+    <!-- #region cr-combo -->
+    <Chart data={{ rows }} x="month" series={{ combo }}
+           valueFormat={{ money }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-combo" />
+
+  <h2>6. A second axis</h2>
+  <p>
+    <code>axis: 'right'</code> puts a series on its own scale. Each side takes its domain from its own
+    series alone, and <code>rightFormat</code> writes its own unit. The <strong>grid stays on the left
+    axis</strong>: two sets of gridlines at different intervals is a lattice a reader has to decode
+    before they can read anything.
+  </p>
+  <Demo>
+    <!-- #region cr-dual -->
+    <Chart data={{ rows }} x="month" series={{ dual }}
+           valueFormat={{ money }} rightFormat={{ plain }} height={{ 260 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-dual" />
+
+  <h2>7. How the points are joined</h2>
+  <p>
+    Three curves in one chart, so they can be compared rather than described. <code>smooth</code> is
+    monotone, not cardinal: the curve cannot overshoot its own points. The usual spline through
+    10, 90, 10 renders a peak above 90, which is a chart showing a value nobody measured.
+  </p>
+  <Demo>
+    <!-- #region cr-curves -->
+    <Chart type="line" data={{ rows }} x="month" series={{ curves }}
+           valueFormat={{ money }} rightFormat={{ plain }} height={{ 260 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-curves" />
+
+  <h2>8. The grid</h2>
+  <p>
+    <code>grid</code> takes <code>'y'</code> (the default), <code>'x'</code>, <code>'both'</code> or
+    <code>false</code>. The default is not symmetry: a value gridline lets a reader carry a height
+    across the plot, while a category gridline separates things that are already separate.
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ cycleGrid }}>Next grid mode</Button>
+    <span class="demo-note">grid: <code>{{ gridText() }}</code></span>
+  </div>
+  <Demo>
+    <!-- #region cr-grid -->
+    <Chart type="line" data={{ rows }} x="month" series={{ twoSeries }}
+           grid={{ gridMode() }} valueFormat={{ money }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-grid" />
+
+  <h2>9. Turning the labels</h2>
+  <p>
+    <code>labelRotate</code> takes an angle, or <code>'auto'</code> — which measures, and turns the
+    labels only when the widest one cannot fit its slot. Rotation is a last resort rather than a
+    default: turned text is measurably slower to read, so the axis thins first.
+  </p>
+  <p>
+    With rotation on, thinning stops: turning is what buys the room, so dropping labels afterwards
+    would throw away exactly what the rotation was for. The bottom margin grows by the label's own
+    length projected onto the vertical, or the longest one is cut off by the edge.
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ cycleRotate }}>Next angle</Button>
+    <span class="demo-note">labelRotate: <code>{{ rotateText() }}</code></span>
+  </div>
+  <Demo>
+    <!-- #region cr-rotate -->
+    <Chart type="bar" data={{ rows }} x="month" y="revenue"
+           labelRotate={{ rotate() }} valueFormat={{ money }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-rotate" />
+
+  <p>
+    <code>'auto'</code> measures against one <strong>slot</strong>, not against the axis — the question
+    is whether a label fits between its two neighbours. So it depends on the width, which is why the
+    demo below is in a deliberately narrow column: the same eight product names across the full page
+    do not collide and are left flat. Widen the window and watch them straighten.
+  </p>
+  <Demo>
+    <!-- #region cr-auto -->
+    <div class="chart-narrow">
+      <Chart type="bar" data={{ share }} x="product" y="revenue"
+             labelRotate="auto" valueFormat={{ money }} height={{ 240 }} />
+    </div>
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-auto" />
+
+  <h2>10. Where the axis starts</h2>
+  <p>
+    <code>zero</code> defaults to true for bars and false for lines, and that difference is not a
+    quirk. Bars encode value by <strong>length</strong>, so cutting the axis makes a 3% difference look
+    like 300% — the single most common way a chart misleads. A line encodes by position, where a zoomed
+    axis is legitimate and often the only way to see anything at all.
+  </p>
+  <p>
+    <code>yMin</code> and <code>yMax</code> pin the axis outright, for the case where a chart has to be
+    comparable with the one beside it rather than with itself.
+  </p>
+  <Demo>
+    <!-- #region cr-zero -->
+    <Chart type="line" data={{ rows }} x="month" y="revenue" zero
+           valueFormat={{ money }} height={{ 200 }} />
+
+    <Chart type="line" data={{ rows }} x="month" y="revenue"
+           yMin={{ 30000 }} yMax={{ 60000 }} valueFormat={{ money }} height={{ 200 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-zero" />
+
+  <h2>11. A tooltip of your own</h2>
+  <p>
+    <code>tooltip</code> is <code>'shared'</code> by default — every series at that x, which is what a
+    reader is comparing. <code>'item'</code> narrows it to the mark under the pointer.
+    <code>tooltipFormat</code> returns a <strong>string</strong>: a tooltip that renders markup is an
+    injection waiting for the first chart drawn from data someone else wrote.
+  </p>
+  <Demo>
+    <!-- #region cr-tooltip -->
+    <Chart type="line" data={{ rows }} x="month" series={{ twoSeries }}
+           tooltipFormat={{ briefly }} valueFormat={{ money }} height={{ 220 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-tooltip" />
+
+  <h2>12. Clicking a point</h2>
+  <p>
+    <code>onPointClick</code> hands back the row, the series, the value and its colour — enough to open
+    a drawer or filter a grid without going back to the data to work out what was hit.
+  </p>
+  <div class="demo-controls">
+    <span class="demo-note">last click: <code>{{ picked() }}</code></span>
+  </div>
+  <Demo>
+    <!-- #region cr-click -->
+    <Chart type="bar" data={{ rows }} x="month" series={{ twoSeries }}
+           onPointClick={{ pick }} valueFormat={{ money }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-click" />
+
+  <h2>13. Animation</h2>
+  <p>
+    One clock per chart drives every mark, and the marks interpolate from where they were — watch the
+    bars <strong>travel</strong> rather than redraw. <code>animate</code> turns it off, and
+    <code>prefers-reduced-motion</code> turns it off without being asked rather than merely speeding
+    it up.
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ shuffle }}>Change the data</Button>
+    <Button variant="ghost" on:click={{ toggleAnimation }}>
+      @if (animated()) { Turn the animation off } @else { Turn it back on }
+    </Button>
+    <span class="demo-note">animate: <code>{{ animatedText() }}</code></span>
+  </div>
+  <Demo>
+    <!-- #region cr-animation -->
+    <Chart type="bar" data={{ live }} x="month" y="revenue"
+           animate={{ animated() }} duration={{ 600 }}
+           valueFormat={{ money }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-animation" />
+
+  <h2>14. A long series</h2>
+  <p>
+    240 readings, fifteen minutes apart. Nothing was configured to say the x values are time — a number
+    past 1971 in milliseconds is read as time, and the ticks land on the hour rather than on the first
+    reading.
+  </p>
+  <CodeTabs id="cr-long" />
+
+  <h2>15. Showing one part of it</h2>
+  <p>
+    <code>brush</code> puts an overview of the whole series under the plot with a window over it. The
+    window is <strong>resizable from both edges</strong>, draggable in the middle, and a drag on empty
+    track starts a new one — that combination is what makes it a control rather than a picture: narrow
+    from the right, then nudge the left edge, without re-selecting from scratch.
+  </p>
+  <p>
+    It works for every cartesian type, because the window is what every mark reads. Nothing about the
+    area below knows a brush exists.
+  </p>
+  <Demo>
+    <!-- #region cr-brush -->
+    <Chart data={{ readings }} x="at" series={{ loadSeries }} brush height={{ 220 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-brush" />
+
+  <h2>16. Owning the window yourself</h2>
+  <p>
+    <code>range</code> and <code>onRangeChange</code> make the window controlled — inclusive row
+    indices, so two charts can be locked to the same window, or a window can be restored from a URL.
+    Omit both and the chart owns it, which is what the section above does.
+  </p>
+  <p>
+    Indices over <strong>rows</strong> rather than over time, deliberately. Markets close: on a
+    continuous time axis a daily chart spends two sevenths of its width drawing weekends.
+  </p>
+  <div class="demo-controls">
+    <Button variant="ghost" on:click={{ resetShown }}>Back to the first 60</Button>
+    <span class="demo-note">range: <code>{{ shownText() }}</code></span>
+  </div>
+  <Demo>
+    <!-- #region cr-range -->
+    <Chart data={{ readings }} x="at" series={{ loadSeries }} brush
+           range={{ shown() }} onRangeChange={{ onShown }} height={{ 220 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-range" />
+
+  <h2>17. Pie and donut</h2>
+  <p>
+    Same <code>data</code>, same <code>x</code>, same <code>y</code> — one row per slice, its label and
+    its value. Moving between a bar chart and a donut is one word, which is the whole reason the radial
+    pair lives in this component rather than beside it.
+  </p>
+  <p>
+    <code>maxSlices</code> keeps the largest and folds the tail into one. The commonest way a pie fails
+    is twenty categories, fifteen of them unreadable slivers; grouping the tail is what a person would
+    do by hand, and unlike dropping them it keeps the total honest.
+  </p>
+  <Demo>
+    <!-- #region cr-pie -->
+    <Chart type="donut" data={{ share }} x="product" y="revenue"
+           maxSlices={{ 6 }} valueFormat={{ money }} height={{ 280 }} yLabel="Revenue" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-pie" />
+
+  <p>
+    A donut's hole is not decoration: it removes the wedge apex, which is the part of a pie a reader is
+    worst at comparing, and it buys somewhere to put the total. Setting the angles turns the same
+    component into a gauge — a gauge is a pie you stopped early.
+  </p>
+  <Demo>
+    <!-- #region cr-gauge -->
+    <Chart type="donut" data={{ share }} x="product" y="revenue"
+           startAngle={{ -90 }} endAngle={{ 90 }} innerRadius={{ 0.55 }}
+           maxSlices={{ 4 }} valueFormat={{ money }} height={{ 200 }} legend={{ false }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-gauge" />
+
+  <h2>18. Candlesticks</h2>
+  <p>
+    <code>ohlc</code> names the four prices and <code>volume</code> adds the subplot under the price
+    pane. The x axis is <strong>ordinal, not time</strong>, and that is the difference between a
+    financial chart and a line chart with fancier marks: indexed by bar, "the last 60 sessions" means
+    60 candles rather than 60 days containing 43 of them.
+  </p>
+  <p>
+    <strong>Wheel to zoom, drag to pan.</strong> Zooming is about the pointer, not the centre — you
+    point at the spike you care about, and it stays under the cursor as the window narrows.
+  </p>
+  <Demo>
+    <!-- #region cr-candles -->
+    <Chart type="candlestick" data={{ sessions }} x="day" ohlc={{ ohlc }} volume="v"
+           valueFormat={{ price }} height={{ 320 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-candles" />
+
+  <p>
+    Colour is decided against the <strong>previous close</strong>, not against the bar's own open. A
+    session that opened below yesterday's close and recovered to just above its own open is a down day,
+    and painting it green tells the reader the opposite of what happened.
+  </p>
+
+  <h2>19. OHLC bars</h2>
+  <p>
+    The same data, one word different. Each bar is a single path — the high–low stroke with a tick left
+    for the open and right for the close — so 500 sessions cost 500 nodes instead of 1,500.
+  </p>
+  <Demo>
+    <!-- #region cr-ohlc -->
+    <Chart type="ohlc" data={{ sessions }} x="day" ohlc={{ ohlc }}
+           valueFormat={{ price }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-ohlc" />
+
+  <h2>20. Sparklines</h2>
+  <p>
+    <code>sparkline</code> strips a chart to its marks — no axes, no grid, no legend, no tooltip, no
+    margins. Axes on something 40px tall are unreadable furniture crowding out the only thing being
+    said, which is the shape.
+  </p>
+  <Demo>
+    <!-- #region cr-spark -->
+    <Chart sparkline data={{ revenueTrend }} x="t" y="v" type="area" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-spark" />
+
+  <h2>21. Metric tiles</h2>
+  <p>
+    <code>&lt;Metric&gt;</code> is the tile every dashboard rebuilds by hand, and rebuilds slightly
+    differently each time. It is not a chart, which is why it is not a <code>&lt;Chart&gt;</code>
+    type — but it composes one, so its sparkline is the same engine as everything above.
+  </p>
+  <p>
+    The judgement worth having is <strong><code>invert</code></strong>. A delta's colour follows its
+    <em>meaning</em>, not its sign: churn up 5% is bad, latency down 8% is good. A tile that paints
+    every rise green tells the reader the opposite of the truth on about half a real dashboard. The
+    arrow carries the direction too, so the tile still reads in greyscale.
+  </p>
+  <Demo>
+    <!-- #region cr-metric -->
+    <div class="metric-row">
+      <Metric label="Revenue" value={{ 182400 }} delta={{ 12.4 }} deltaLabel="vs last month"
+              data={{ revenueTrend }} x="t" y="v" />
+
+      <Metric label="Churn" value={{ 4.6 }} unit="%" delta={{ 5.2 }} deltaLabel="vs last month"
+              invert data={{ churnTrend }} x="t" y="v" />
+
+      <Metric label="p95 latency" value={{ 168 }} unit="ms" delta={{ -8.1 }} deltaLabel="vs last week"
+              invert data={{ latencyTrend }} x="t" y="v" sparkType="line" />
+
+      <Metric label="Seats used" value={{ 771 }} target={{ 1000 }} targetLabel="of"
+              data={{ seatsTrend }} x="t" y="v" sparkType="bar" />
+    </div>
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-metric" />
+</article>
