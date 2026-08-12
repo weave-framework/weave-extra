@@ -14,12 +14,10 @@
 import { computed, onCleanup, signal, type Computed, type Signal } from '@weave-framework/runtime';
 import Button from '@weave-framework/ui/button';
 import Chart, {
-  captureChart,
-  morph,
-  prefersReducedMotion,
+  swapChart,
   type ChartPoint,
-  type MarkShape,
   type SeriesConfig,
+  type SwapHandle,
 } from '@weave-framework/extra/components/chart';
 import Metric from '@weave-framework/extra/components/metric';
 import Demo from '../lib/demo/demo.js';
@@ -213,8 +211,6 @@ export interface RecipesContext {
   chosen: () => PickId;
   choose: (id: PickId) => void;
   pickVariant: (id: PickId) => string;
-  stageClass: () => string;
-  enterClass: () => string;
   chosenNote: () => string;
   swapSeries: SeriesConfig<Reading>[];
   staggered: () => boolean;
@@ -244,67 +240,13 @@ export function setup(): RecipesContext {
    * that each is how a picker ends up highlighting one chart while showing another.
    */
   const pending: Signal<PickId | null> = signal<PickId | null>(null);
-  /**
-   * Which way the stage is travelling, taken from the picker's own order.
-   *
-   * Motion that means something: pick a chart to the right of the current one and the old one
-   * leaves left while the new one arrives from the right, so the four charts read as a strip you
-   * are moving along rather than four slides fading in the same spot. Direction is the cheapest
-   * way to tell a reader where they just went.
-   */
-  const forward: Signal<boolean> = signal<boolean>(true);
   const staggered: Signal<boolean> = signal<boolean>(true);
   const morphing: Signal<boolean> = signal<boolean>(true);
   let stage: HTMLElement | null = null;
-  let running: { finish: () => void } | null = null;
-  let timer: number | undefined;
+  let running: SwapHandle | null = null;
   // A swap in flight when the page goes away would set a signal on a component that no longer
   // exists — cheap to prevent, and the kind of thing that only shows up as a console error later.
-  onCleanup(() => {
-    if (timer !== undefined) clearTimeout(timer);
-    running?.finish();
-  });
-
-  // #region cr-morph
-  /**
-   * Turn the chart on the stage into the next one, marks and all.
-   *
-   * The old chart's marks are sampled BEFORE the swap, because a moment later they do not exist —
-   * the component is gone and its geometry with it. What is captured is not the data but the
-   * outlines, which is the only thing two unrelated charts have in common and, as it turns out,
-   * enough to interpolate.
-   */
-  const runMorph = (id: PickId): void => {
-    running?.finish();
-    running = null;
-    const svg: SVGSVGElement | null = stage?.querySelector<SVGSVGElement>('.weave-chart__svg') ?? null;
-    // Nobody watching, or nothing to morph from: swap and be done. A morph in a hidden tab would
-    // hold the incoming chart at zero opacity waiting for frames that never come.
-    if (!stage || !svg || document.hidden || prefersReducedMotion()) {
-      chosen.set(id);
-      return;
-    }
-    const from: MarkShape[] = captureChart(svg);
-    const host: HTMLElement = stage;
-    chosen.set(id);
-    /**
-     * One microtask, not one frame.
-     *
-     * The new chart exists synchronously — its marks are in the DOM the instant the signal is set —
-     * but it renders at `width="0"` until `onMount` runs and measures the container, and `onMount`
-     * is deferred by exactly one microtask. Capturing on the same tick therefore samples a chart
-     * squashed into a 1px column, and the morph would suck the whole plot into the left margin.
-     *
-     * A frame would work too, and would be worse: frames do not arrive in a background tab, so the
-     * morph would be left holding the incoming chart at zero opacity until the watchdog rescued it.
-     * Microtasks always run.
-     */
-    queueMicrotask(() => {
-      const next: SVGSVGElement | null = host.querySelector<SVGSVGElement>('.weave-chart__svg');
-      if (next && next.getBoundingClientRect().width > 1) running = morph(host, from, next, { duration: 620 });
-    });
-  };
-  // #endregion
+  onCleanup(() => running?.finish());
 
   const GRIDS: GridMode[] = ['y', 'x', 'both', false];
   const ROTATIONS: (number | 'auto')[] = [-45, -90, 30, 'auto', 0];
@@ -452,74 +394,40 @@ export function setup(): RecipesContext {
     // #region cr-swap
     chosen: (): PickId => chosen(),
     /**
-     * Fade the old one out, swap, let the new one play its own entrance.
+     * One call, either transition.
      *
-     * The tempting thing is to morph — keep one chart and feed it the next dataset, so the marks
-     * travel. The engine would do it: the memory interpolates every mark from where it was. It
-     * would also be a lie. Month 3 of revenue is not session 3 of a market, and a bar sliding into
-     * a candle asserts a relationship between two numbers that have none. Morphing is right when
-     * the SAME series changes and wrong when the subject does.
-     *
-     * So the outgoing chart leaves as a whole and the incoming one arrives as a whole. What makes
-     * that beautiful rather than abrupt is that the new chart is genuinely MOUNTING, and a mounting
-     * chart already animates itself in — bars grow from the baseline, lines draw, slices sweep. The
-     * transition is not written here; it is the entrance every chart already has, uncovered by
-     * getting out of its way.
+     * `swapChart` takes a callback rather than a rendered chart because the outgoing one has to be
+     * measured while it still exists — a moment after `chosen.set` the old component is gone and
+     * its geometry with it. Handing over the swap is also what lets it choose the moment: a morph
+     * commits immediately and interpolates the marks, a fade commits halfway through.
      */
     choose: (id: PickId): void => {
-      // Against what is COMING, not what is showing. Pick a chart and then change your mind inside
-      // the 160ms, and comparing against the visible one lets the first pick land anyway — the
-      // stage ends up on a chart whose button you un-clicked.
+      // Against what is COMING, not what is showing. Pick a chart, then change your mind before the
+      // transition lands, and comparing with the visible one lets the first pick arrive anyway —
+      // the stage ends up on a chart whose button you un-clicked.
       if (id === (pending() ?? chosen())) return;
-      if (timer !== undefined) clearTimeout(timer);
-      if (id === chosen()) {
-        // Back to what is already on the stage: cancel the fade rather than swap to it.
-        timer = undefined;
+      running?.finish();
+      running = null;
+      if (id === chosen() || !stage) {
+        // Back to what is already on the stage: cancel rather than transition to it.
         pending.set(null);
-        return;
-      }
-      forward.set(PICKS.findIndex((p) => p.id === id) > PICKS.findIndex((p) => p.id === chosen()));
-      if (morphing()) {
-        runMorph(id);
-        return;
-      }
-      // A crossfade someone has asked not to see is not a courtesy. Swap outright.
-      if (prefersReducedMotion()) {
         chosen.set(id);
         return;
       }
+      const back: boolean = PICKS.findIndex((p) => p.id === id) < PICKS.findIndex((p) => p.id === chosen());
       pending.set(id);
-      /**
-       * A timer, deliberately, and not `transitionend`.
-       *
-       * A transition in a hidden tab is created and never advances — no frames, no end event — so
-       * sequencing the swap on it means a picker that works until someone switches tabs mid-click
-       * and comes back to a chart frozen half-faded, waiting for an event that will never arrive.
-       * The same trap the animation clock needed a watchdog for.
-       */
-      timer = window.setTimeout(() => {
-        chosen.set(id);
-        pending.set(null);
-        timer = undefined;
-      }, 160);
+      running = swapChart(
+        stage,
+        () => {
+          chosen.set(id);
+          pending.set(null);
+        },
+        { morph: morphing(), direction: back ? 'back' : 'forward' }
+      );
     },
     // #endregion
     // The button follows the pending pick, so the picker answers the click rather than the timer.
     pickVariant: (id: PickId): string => (id === (pending() ?? chosen()) ? 'primary' : 'ghost'),
-    stageClass: (): string =>
-      pending() === null ? 'chart-stage' : `chart-stage is-leaving ${forward() ? 'to-left' : 'to-right'}`,
-    /**
-     * The entrance rides a FRESH node, not a class toggled on the stage.
-     *
-     * A CSS animation replays only when it starts on a newly rendered element; re-adding a class
-     * that is already there does nothing, which is the classic way an entrance animation works once
-     * and never again. The `@switch` mints a new wrapper on every pick, so the animation is
-     * guaranteed a first frame.
-     */
-    enterClass: (): string =>
-      // Nothing in morph mode: a CSS slide over the top would drag the marks sideways while they
-      // are busy bending into their new shape, and the two motions read as one broken one.
-      morphing() ? '' : `chart-enter ${forward() ? 'from-right' : 'from-left'}`,
     staggered: (): boolean => staggered(),
     staggerText: (): string => (staggered() ? 'on' : 'off'),
     toggleStagger: (): void => {

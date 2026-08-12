@@ -557,7 +557,7 @@ import Chart, {
   // layout
   layout, widestLabel,
   // morphing one chart into another — see 14.5
-  morph, captureChart, sampleShape, alignRing, parseColor,
+  swapChart, morph, captureChart, sampleShape, alignRing, parseColor,
   type ChartProps, type SeriesConfig, type ChartPoint, type ChartType, type SeriesType, type Curve,
 } from '@weave-framework/extra/components/chart';
 
@@ -598,15 +598,34 @@ same series changes — new month, refreshed query, a filter applied — and onl
 
 Switching to an unrelated chart is a different question, because there is nothing to pair by.
 Twelve bars against ninety candles, a filled ring against a stroked line: no correspondence exists,
-so none can be interpolated. `morph()` transitions those anyway, on the one thing every mark shares:
+so none can be interpolated. `swapChart` transitions those anyway, on the one thing every mark
+shares:
 
 ```ts
-import { captureChart, morph } from '@weave-framework/extra/components/chart';
+import { swapChart } from '@weave-framework/extra/components/chart';
 
-const from = captureChart(currentSvg);   // sample the outlines BEFORE the swap
-choice.set(next);                        // the old chart is gone after this
-queueMicrotask(() => morph(stage, from, stage.querySelector('.weave-chart__svg')));
+// `host` is a positioned element containing the chart.
+swapChart(host, () => choice.set(next), { morph: true });
 ```
+
+`commit` is a callback rather than a rendered chart because the outgoing one has to be measured
+**while it still exists** — a moment after the signal is set the old component is gone with its
+geometry. Handing the swap over is also what lets the transition choose when it happens: a morph
+commits immediately and interpolates the marks, a fade commits halfway through.
+
+| Option | Default | |
+| --- | --- | --- |
+| `morph` | `true` | `false` cross-fades the plot instead |
+| `duration` | 620 / 400 | whole run; the second figure is the fade |
+| `direction` | `'forward'` | `'back'`, or `'none'` to fade in place. The morph ignores it |
+| `samples` | 48 | points per outline |
+
+**`morph: false` is not merely the cheap option.** A morph is read by following individual shapes,
+so it earns its keep at twelve bars and stops meaning anything at three thousand, where the eye has
+nothing to track and the run is a shimmer. Dense marks, a slow machine, or a house style that
+dislikes movement are all good reasons to turn it off.
+
+`morph()` and `captureChart()` are exported too, for a caller driving the sampling themselves.
 
 `path`, `rect`, `circle` and `line` all descend from `SVGGeometryElement`, so the browser will hand
 back a point at any distance along any of them. Sampled into equal-length rings, two shapes
@@ -622,17 +641,21 @@ are paired **left to right**, so the change runs along the axis. Pairing is **pr
 than enter-and-exit, so twelve bars becoming four slices is groups of three converging and landing
 on top of each other, and nothing appears out of nowhere.
 
-Two traps, both about time rather than geometry:
+`swapChart` handles the timing traps, all of which are about a tab that has stopped compositing
+rather than about geometry — worth knowing if you drive the pieces yourself:
 
-- Capture the outgoing chart **before** setting the signal. A moment later the component is gone and
-  its geometry with it.
-- Start the morph on a **microtask**, not a frame. The incoming chart's marks exist synchronously
-  but render at `width="0"` until `onMount` measures the container, which is one microtask away;
-  capture on the same tick and you morph into a plot squashed against the left margin. A frame would
-  also work and would be worse — frames never arrive in a background tab.
+- The incoming chart's marks exist synchronously but render at `width="0"` until it has measured its
+  container on mount, one **microtask** away. Sample on the same tick and you morph into a plot
+  squashed against the left margin. A frame would also work and would be worse: frames never arrive
+  in a background tab, microtasks always run.
+- Never sequence on `transitionend` or `Animation.finished`. Neither arrives when frames stop, so a
+  transition that waits on one strands the chart mid-flight.
+- A running animation applies its **current** value, and one that never advances stays on its first
+  keyframe — so a fade-in starting at `opacity: 0` renders nothing at all until frames return.
+  Omitting `fill` does not save you: that governs what happens after it finishes, and it never does.
+  Force it to the end on a timer.
 
-Sequence a plain crossfade on a **timer** rather than `transitionend`, for the same reason: a CSS
-transition in a hidden tab is created and never advances, so the end event never comes.
+The rule behind all three: every failure mode must land on *no animation*, never on *no chart*.
 
 ### 14.6 What is not there
 

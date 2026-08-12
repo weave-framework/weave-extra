@@ -60,8 +60,8 @@ export { candleBody, clampRange, isUp, ohlcPath, panRange, zoomRange } from './f
 export type { Bar, Range } from './financial.js';
 export { layout, widestLabel } from './layout.js';
 export type { LayoutInput, PlotBox } from './layout.js';
-export { alignRing, captureChart, morph, parseColor, sampleShape } from './morph.js';
-export type { MarkShape, MorphHandle, MorphOptions, Rgba } from './morph.js';
+export { alignRing, captureChart, morph, parseColor, sampleShape, swapChart } from './morph.js';
+export type { MarkShape, MorphHandle, MorphOptions, Rgba, SwapHandle, SwapOptions } from './morph.js';
 
 /* ────────────────────────────── template shapes ────────────────────────────── */
 

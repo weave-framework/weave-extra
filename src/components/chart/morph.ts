@@ -18,7 +18,13 @@
  * the axis, not by identity, because between two unrelated datasets there is no identity to pair by.
  * The motion says "this display is becoming that one". It does not say "this number became that
  * number" — that claim belongs to the update animation inside a single chart, where it is true.
+ *
+ * {@link swapChart} is the way in for callers who just want a transition and do not want to think
+ * about any of this. The morph is the good one and the default; a cross-fade is one option away,
+ * and is the honest choice when the marks are too dense for the eye to follow anyway.
  */
+
+import { prefersReducedMotion } from './motion.js';
 
 /** Everything drawn as data. Deliberately not the axes, grid, labels or crosshair. */
 const MARKS =
@@ -299,4 +305,159 @@ export function morph(
   watchdog = setTimeout(finish, duration + 400);
 
   return { finish };
+}
+
+/* ────────────────────────── swapping one chart for another ────────────────────────── */
+
+export interface SwapOptions {
+  /**
+   * Interpolate the marks into their replacements. Default true.
+   *
+   * `false` cross-fades the plot instead — which is not merely the cheap option. A morph is read by
+   * following individual shapes, so it earns its keep at twelve bars and stops meaning anything at
+   * three thousand, where the eye has nothing to track and the run is just a shimmer. Dense marks,
+   * a slow machine, or a house style that dislikes movement are all reasons to turn it off, and the
+   * fade is a perfectly good transition.
+   */
+  morph?: boolean;
+  /** Whole run in ms. Default 620 morphing, 400 fading. */
+  duration?: number;
+  /**
+   * Which way a fade travels. `'forward'` sends the old chart left and brings the new one in from
+   * the right; `'none'` fades in place. Ignored by the morph, which has its own direction — the
+   * shapes go where the data goes.
+   */
+  direction?: 'forward' | 'back' | 'none';
+  /** Points per outline, for the morph. */
+  samples?: number;
+}
+
+export interface SwapHandle {
+  /** Land immediately: commit if that has not happened yet, then clean up. Safe to call twice. */
+  finish: () => void;
+}
+
+const DONE: SwapHandle = { finish: (): void => undefined };
+
+/**
+ * Transition the chart inside `host` into whatever `commit` renders.
+ *
+ * `commit` is a callback rather than a rendered element because the outgoing chart has to be
+ * measured while it still exists — a moment after the signal is set, the old component is gone and
+ * its geometry with it. Handing over the swap itself is what lets this function choose when it
+ * happens: immediately for a morph, and after the fade-out for a cross-fade.
+ *
+ *   swapChart(stage, () => selected.set(next), { morph: useMorph() });
+ *
+ * `host` must be a positioned element containing the chart. Every failure mode degrades to an
+ * instant swap rather than to a chart that is missing: no outgoing chart, a hidden tab, reduced
+ * motion, or frames that stop arriving mid-run.
+ */
+export function swapChart(host: HTMLElement, commit: () => void, options: SwapOptions = {}): SwapHandle {
+  const wantsMorph: boolean = options.morph !== false;
+  const svg: SVGSVGElement | null = host.querySelector<SVGSVGElement>('.weave-chart__svg');
+
+  // Nobody watching, nothing to transition from, or motion turned down. A transition in a hidden
+  // tab is worse than none: it would hold the incoming chart invisible waiting for frames.
+  if (!svg || (typeof document !== 'undefined' && document.hidden) || prefersReducedMotion()) {
+    commit();
+    return DONE;
+  }
+
+  const duration: number = options.duration ?? (wantsMorph ? 620 : 400);
+
+  if (wantsMorph) {
+    const from: MarkShape[] = captureChart(svg, options.samples ?? 48);
+    commit();
+    let handle: MorphHandle | null = null;
+    let cancelled = false;
+    /**
+     * One microtask, not one frame.
+     *
+     * The new chart's marks are in the DOM the instant `commit` returns, but it renders at
+     * `width="0"` until it has measured its container on mount — one microtask away. Sampling on
+     * the same tick captures a chart squashed into a 1px column and morphs the plot into the left
+     * margin. A frame would also work and would be worse: frames never arrive in a background tab,
+     * microtasks always run.
+     */
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const next: SVGSVGElement | null = host.querySelector<SVGSVGElement>('.weave-chart__svg');
+      if (next && next.getBoundingClientRect().width > 1) {
+        handle = morph(host, from, next, { duration, samples: options.samples });
+      }
+    });
+    return {
+      finish: (): void => {
+        cancelled = true;
+        handle?.finish();
+      },
+    };
+  }
+
+  /**
+   * The cross-fade, driven by the Web Animations API rather than by CSS classes.
+   *
+   * Classes would mean shipping a stylesheet for an element this package does not own, and the
+   * caller remembering to import it. `animate()` needs neither, and it hands back an object that
+   * can be cancelled — which is what makes an interrupted swap recoverable.
+   *
+   * Nothing waits on `finished` and nothing is left filling forwards. Both are traps in a tab that
+   * stops compositing: the promise never resolves, and a forwards-filled fade-out pins the chart at
+   * zero opacity for good. Timers keep running, so the phases are sequenced on those.
+   *
+   * A running animation applies its CURRENT value, and an animation that never advances stays on
+   * its first keyframe — so the fade-in, whose first keyframe is `opacity: 0`, would render the
+   * chart invisible for as long as frames stayed away. Omitting `fill` does not help: that only
+   * decides what happens once it has finished, and it never does. Hence the watchdog, which forces
+   * it to the end. Every failure mode has to land on "no animation", never on "no chart".
+   */
+  const shift: number = options.direction === 'none' ? 0 : options.direction === 'back' ? -24 : 24;
+  const outMs: number = Math.round(duration * 0.4);
+  const inMs: number = duration - outMs;
+  const easing = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
+
+  const leaving: Animation = host.animate(
+    [
+      { opacity: 1, transform: 'translateX(0px)' },
+      { opacity: 0, transform: `translateX(${-shift}px)` },
+    ],
+    { duration: outMs, easing, fill: 'forwards' }
+  );
+
+  let done = false;
+  let timer: ReturnType<typeof setTimeout> | 0 = 0;
+  let settle: ReturnType<typeof setTimeout> | 0 = 0;
+  let arriving: Animation | null = null;
+
+  const swap = (): void => {
+    if (done) return;
+    done = true;
+    timer = 0;
+    leaving.cancel();
+    commit();
+    arriving = host.animate(
+      [
+        { opacity: 0, transform: `translateX(${shift}px)` },
+        { opacity: 1, transform: 'translateX(0px)' },
+      ],
+      { duration: inMs, easing }
+    );
+    settle = setTimeout(() => {
+      settle = 0;
+      arriving?.finish();
+    }, inMs + 200);
+  };
+
+  timer = setTimeout(swap, outMs);
+
+  return {
+    finish: (): void => {
+      if (timer) clearTimeout(timer);
+      swap();
+      if (settle) clearTimeout(settle);
+      settle = 0;
+      arriving?.finish();
+    },
+  };
 }

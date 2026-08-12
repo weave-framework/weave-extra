@@ -457,9 +457,22 @@
     re-find after each use.
   </p>
   <p>
-    The switch above turns the morph off, leaving the plain swap: 160ms out, then the new chart
-    mounts and plays its own entrance. Worth comparing — it is the cheaper effect and there is
-    nothing wrong with it.
+    Both transitions are one call — <code>swapChart(host, commit, { morph })</code> — and the switch
+    below is that one option. <code>morph: false</code> cross-fades instead: the old chart leaves the
+    way you are travelling, the new one arrives from the other side and plays its own entrance.
+  </p>
+  <p>
+    That is not merely the cheap option. A morph is read by <em>following individual shapes</em>, so
+    it earns its keep at twelve bars and stops meaning anything at three thousand, where the eye has
+    nothing to track and the run is a shimmer. Dense marks, a slow machine, or a house style that
+    dislikes movement are all good reasons to turn it off.
+  </p>
+  <p>
+    <code>commit</code> is a callback rather than a rendered chart, and that is the whole design: the
+    outgoing chart has to be <strong>measured while it still exists</strong>, and a moment after the
+    signal is set the old component is gone with its geometry. Handing the swap over is also what
+    lets the transition choose <em>when</em> it happens — a morph commits immediately and interpolates
+    the marks, a fade commits halfway through.
   </p>
   <div class="demo-controls">
     <Button variant="ghost" on:click={{ toggleMode }}>
@@ -482,40 +495,31 @@
       }
     </div>
 
-    <div class={{ stageClass() }} ref={{ setStage }}>
+    <div class="chart-stage" ref={{ setStage }}>
       @switch (chosen()) {
         @case ('revenue') {
-          <div class={{ enterClass() }}>
-            <Chart type="bar" data={{ rows }} x="month" y="revenue" stagger={{ staggered() }}
-                   animate={{ chartAnimates() }}
-                   valueFormat={{ money }} height={{ 300 }} yLabel="Revenue" />
-          </div>
+          <Chart type="bar" data={{ rows }} x="month" y="revenue" stagger={{ staggered() }}
+                 animate={{ chartAnimates() }}
+                 valueFormat={{ money }} height={{ 300 }} yLabel="Revenue" />
         }
         @case ('load') {
-          <div class={{ enterClass() }}>
-            <Chart data={{ readings }} x="at" series={{ swapSeries }} stagger={{ staggered() }}
-                   animate={{ chartAnimates() }} height={{ 300 }} grid="y" />
-          </div>
+          <Chart data={{ readings }} x="at" series={{ swapSeries }} stagger={{ staggered() }}
+                 animate={{ chartAnimates() }} height={{ 300 }} grid="y" />
         }
         @case ('share') {
-          <div class={{ enterClass() }}>
-            <Chart type="donut" data={{ share }} x="product" y="revenue" stagger={{ staggered() }}
-                   animate={{ chartAnimates() }}
-                   maxSlices={{ 6 }} valueFormat={{ money }} height={{ 300 }} />
-          </div>
+          <Chart type="donut" data={{ share }} x="product" y="revenue" stagger={{ staggered() }}
+                 animate={{ chartAnimates() }}
+                 maxSlices={{ 6 }} valueFormat={{ money }} height={{ 300 }} />
         }
         @case ('market') {
-          <div class={{ enterClass() }}>
-            <Chart type="candlestick" data={{ sessions }} x="day" ohlc={{ ohlc }} volume="v"
-                   stagger={{ staggered() }} animate={{ chartAnimates() }}
-                   valueFormat={{ price }} height={{ 300 }} />
-          </div>
+          <Chart type="candlestick" data={{ sessions }} x="day" ohlc={{ ohlc }} volume="v"
+                 stagger={{ staggered() }} animate={{ chartAnimates() }}
+                 valueFormat={{ price }} height={{ 300 }} />
         }
       }
     </div>
     <!-- #endregion -->
   </Demo>
   <CodeTabs id="cr-swap" />
-  <CodeTabs id="cr-morph" />
   <CodeTabs id="cr-swap-picks" />
 </article>
