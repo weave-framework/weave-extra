@@ -21,7 +21,7 @@
 import { computed, effect, onMount, signal, type Computed, type Signal } from '@weave-framework/runtime';
 import { resizeSignal, type Size } from '@weave-framework/ui/cdk';
 import { bandScale, compactNumber, extent, linearScale, logScale, timeScale, type BandScale, type Scale } from './scale.js';
-import { layout, type PlotBox } from './layout.js';
+import { layout, widestLabel, type PlotBox } from './layout.js';
 import { areaPath, barPath, linePath, type Pt } from './marks.js';
 import { arcCentroid, arcPath, fitArc, groupTail, layoutArcs, toRadians, type Slice } from './arc.js';
 import { candleBody, clampRange, isUp, ohlcPath, panRange, zoomRange, type Bar, type Range } from './financial.js';
@@ -77,6 +77,8 @@ export interface AxisTick {
   y: number;
   label: string;
   anchor: 'start' | 'middle' | 'end';
+  /** An SVG transform when the label is turned, or `undefined` when it sits flat. */
+  transform?: string;
 }
 
 export interface PathMark {
@@ -166,6 +168,20 @@ export interface FinancialView {
   hasVolume: boolean;
 }
 
+export interface BrushView {
+  height: number;
+  /** The whole series, drawn small — one path, no axes. */
+  d: string;
+  /** The selected window, in px. */
+  x: number;
+  width: number;
+  /** Handle centres, for the two grips. */
+  leftX: number;
+  rightX: number;
+  /** `1 of 12` — so the control says what it is doing without a tooltip. */
+  caption: string;
+}
+
 export interface LegendEntry {
   label: string;
   color: string;
@@ -244,6 +260,10 @@ export interface ChartContext<TRow> {
   onSliceEnter: (index: number) => void;
 
   isSpark: () => boolean;
+  hasBrush: () => boolean;
+  brush: () => BrushView;
+  onBrushDown: (event: PointerEvent, part: 'left' | 'right' | 'body' | 'track') => void;
+
   isFinancial: () => boolean;
   financial: () => FinancialView;
   onWheel: (event: WheelEvent) => void;
@@ -292,10 +312,43 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
   const width = (): number => measured();
   const height = (): number => props.height ?? (props.sparkline ? 40 : 260);
 
-  /* ── data ── */
-  const rows: Computed<readonly TRow[]> = computed<readonly TRow[]>(() =>
+  /* ── data, and the window over it ──
+   *
+   * `allRows` is everything; `rows` is what the plot draws. Making the WINDOW the thing every mark
+   * reads — rather than threading a range through each of them — is what lets a brush work for a
+   * line, a bar and a candle alike: they were already reading `rows()`, and now that means "the
+   * visible part". `rowOffset` carries the absolute index, which the animation memory keys on so
+   * that panning moves marks instead of re-growing them. */
+  const allRows: Computed<readonly TRow[]> = computed<readonly TRow[]>(() =>
     typeof props.data === 'function' ? props.data() : props.data ?? []
   );
+
+  /** Is there a window at all? Without one, `rows` is `allRows` and nothing pays for the slice. */
+  const windowed = (): boolean =>
+    props.brush === true || props.range !== undefined || props.type === 'candlestick' || props.type === 'ohlc';
+
+  const ownRange: Signal<Range | null> = signal<Range | null>(null);
+  const range: Computed<Range> = computed<Range>(() => {
+    const count: number = allRows().length;
+    if (props.range) return clampRange(props.range, count);
+    return clampRange(ownRange() ?? [0, count - 1], count);
+  });
+
+  const setRange = (next: Range): void => {
+    const clamped: Range = clampRange(next, allRows().length);
+    ownRange.set(clamped);
+    props.onRangeChange?.(clamped);
+  };
+
+  /** Index of the first visible row, so a mark can key itself by its place in the whole series. */
+  const rowOffset = (): number => (windowed() ? range()[0] : 0);
+
+  const rows: Computed<readonly TRow[]> = computed<readonly TRow[]>(() => {
+    const all: readonly TRow[] = allRows();
+    if (!windowed()) return all;
+    const [from, to]: Range = range();
+    return all.slice(from, to + 1);
+  });
 
   const xValues: Computed<unknown[]> = computed<unknown[]>(() => rows().map((row) => read(props.x, row)));
 
@@ -457,7 +510,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     if (props.sparkline) {
       return { left: 1, top: 1, width: Math.max(1, w - 2), height: Math.max(1, h - 2), right: w - 1, bottom: h - 1 };
     }
-    return layout({
+    const box: PlotBox = layout({
       width: w,
       height: h,
       leftLabels: yLabels(),
@@ -466,6 +519,13 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       xTitle: props.xLabel,
       yTitle: props.yLabel,
     });
+    const angle: number = labelAngle();
+    if (angle === 0) return box;
+    // Turned text is as tall as its own length projected onto the vertical — reserve that, or the
+    // longest label is cut off by the bottom edge.
+    const extra: number = Math.ceil(widestLabel(xLabels()) * Math.abs(Math.sin((angle * Math.PI) / 180)));
+    const shorter: number = Math.max(1, box.height - extra);
+    return { ...box, height: shorter, bottom: box.top + shorter };
   });
 
   const yScale: Computed<Scale<number>> = computed(() => {
@@ -546,7 +606,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       const top: number = topOf(seriesIndex, i);
       const defined: boolean = Number.isFinite(top);
       const target: number = defined ? scale.to(top) : zeroY;
-      const y: number = memory.at(`${seriesIndex}:${i}`, target, t, zeroY);
+      const y: number = memory.at(`${seriesIndex}:${rowOffset() + i}`, target, t, zeroY);
       return { x: xAt(i), y, defined };
     });
   };
@@ -618,7 +678,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
         if (!Number.isFinite(top)) return;
         const bottom: number = s.stack ? scale.to(baseOf(index, i)) : zeroY;
         const target: number = scale.to(top);
-        const y: number = memory.at(`bar-${index}:${i}`, target, t, bottom);
+        const y: number = memory.at(`bar-${index}:${rowOffset() + i}`, target, t, bottom);
         const left: number = (band ? band.start(String(xValues()[i] ?? '')) : xAt(i) - slot / 2) + group * each;
         out.push({
           key: `bar-${index}-${i}`,
@@ -678,30 +738,62 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     }));
   });
 
+  /**
+   * How far the category labels turn.
+   *
+   * `'auto'` measures: labels turn only when the widest one cannot fit its slot. Rotation is a last
+   * resort rather than a default, because turned text is measurably slower to read — the axis thins
+   * first, and only turns when thinning would drop labels that matter.
+   */
+  const labelAngle: Computed<number> = computed<number>(() => {
+    const setting = props.labelRotate;
+    if (setting === undefined) return 0;
+    if (typeof setting === 'number') return setting;
+    const band: BandScale | null = xBand();
+    if (!band) return 0;
+    const labels: string[] = band.domain.map((value) => String(value));
+    return widestLabel(labels) > band.range[1] - band.range[0] ? -45 : 0;
+  });
+
   const xTicks: Computed<AxisTick[]> = computed<AxisTick[]>(() => {
     const box: PlotBox = plot();
     const band: BandScale | null = xBand();
+    const angle: number = labelAngle();
+    // A turned label hangs from its own end rather than being centred on the tick, or it drifts
+    // away from the column it names.
+    const turn = (x: number, y: number): { anchor: 'middle' | 'end'; transform?: string } =>
+      angle === 0 ? { anchor: 'middle' } : { anchor: 'end', transform: `rotate(${angle} ${x} ${y})` };
     const label: (value: unknown) => string = props.labelFormat ?? ((value: unknown) => String(value ?? ''));
     if (band) {
       // How many labels fit, from the width the widest one needs — not a fixed stride.
       const fit: number = Math.max(1, Math.floor(box.width / 64));
-      return band.ticks(fit).map((value) => ({
-        key: `x-${value}`,
-        x: band.to(value),
-        y: box.bottom + 14,
-        label: props.labelFormat ? label(value) : value,
-        anchor: 'middle' as const,
-      }));
+      // With rotation on, every label fits — turning them is what buys the room, so thinning to
+      // what would fit flat would throw away the labels the rotation was for.
+      return band.ticks(angle === 0 ? fit : band.domain.length).map((value) => {
+        const x: number = band.to(value);
+        const y: number = box.bottom + 14;
+        return {
+          key: `x-${value}`,
+          x,
+          y,
+          label: props.labelFormat ? label(value) : value,
+          ...turn(x, y),
+        };
+      });
     }
     const scale: Scale<number> | null = xContinuous();
     if (!scale) return [];
-    return scale.ticks(Math.max(2, Math.floor(box.width / 80))).map((value) => ({
-      key: `x-${value}`,
-      x: scale.to(value),
-      y: box.bottom + 14,
-      label: props.labelFormat ? label(value) : scale.format(value),
-      anchor: 'middle' as const,
-    }));
+    return scale.ticks(Math.max(2, Math.floor(box.width / 80))).map((value) => {
+      const x: number = scale.to(value);
+      const y: number = box.bottom + 14;
+      return {
+        key: `x-${value}`,
+        x,
+        y,
+        label: props.labelFormat ? label(value) : scale.format(value),
+        ...turn(x, y),
+      };
+    });
   });
 
   const grid: Computed<GridLine[]> = computed<GridLine[]>(() => {
@@ -899,26 +991,10 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     });
   });
 
-  /** The window. Controlled by `range` when given, owned here otherwise. */
-  const ownRange: Signal<Range | null> = signal<Range | null>(null);
-  const range: Computed<Range> = computed<Range>(() => {
-    const count: number = rows().length;
-    if (props.range) return clampRange(props.range, count);
-    return clampRange(ownRange() ?? [0, count - 1], count);
-  });
-
-  const setRange = (next: Range): void => {
-    const clamped: Range = clampRange(next, rows().length);
-    ownRange.set(clamped);
-    props.onRangeChange?.(clamped);
-  };
-
-  const windowRows: Computed<{ row: TRow; index: number }[]> = computed(() => {
-    const [from, to]: Range = range();
-    return rows()
-      .slice(from, to + 1)
-      .map((row, i) => ({ row, index: from + i }));
-  });
+  /** The visible bars, carrying their absolute index — `rows()` is already the window. */
+  const windowRows: Computed<{ row: TRow; index: number }[]> = computed(() =>
+    rows().map((row, i) => ({ row, index: rowOffset() + i }))
+  );
 
   const financial: Computed<FinancialView> = computed<FinancialView>(() => {
     const w: number = width();
@@ -971,7 +1047,9 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
 
     const candles: CandleMark[] = shown.map(({ row, index }, i) => {
       const bar: Bar = toBar(row);
-      const previous: Bar | undefined = index > 0 ? toBar(rows()[index - 1]) : undefined;
+      // The bar before this one in the WHOLE series, not in the window — the first visible candle
+      // still has a yesterday, and colouring it against its own open would be wrong at the edge.
+      const previous: Bar | undefined = index > 0 ? toBar(allRows()[index - 1]) : undefined;
       const rising: boolean = isUp(bar, previous?.close);
       const cx: number = band.to(String(index));
       const body = candleBody(cx - bodyWidth / 2, bodyWidth, price.to(bar.open), price.to(bar.close));
@@ -1042,6 +1120,90 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
 
     return { candles, volumes, priceTicks, timeTicks, grid, priceBottom, volumeTop, hasVolume };
   });
+
+  /* ────────────────────────── the brush ──────────────────────────
+   *
+   * An overview of the WHOLE series with the visible window drawn over it. The strip is deliberately
+   * bare — one path, no axes, no ticks: it is a control, and furniture on it competes with the plot
+   * it controls. */
+
+  const brushHeight = (): number => props.brushHeight ?? 48;
+
+  const brush: Computed<BrushView> = computed<BrushView>(() => {
+    const all: readonly TRow[] = allRows();
+    const w: number = width();
+    const h: number = brushHeight();
+    const count: number = all.length;
+    const [from, to]: Range = range();
+
+    // The outline is the first visible series over the whole set — enough to recognise the shape
+    // you are selecting from, which is all the strip is for.
+    const first: ResolvedSeries<TRow> | undefined = visible()[0];
+    const values: number[] = first ? all.map((row) => first.value(row)) : [];
+    const [min, max]: [number, number] = extent(values);
+    const scale: Scale<number> = linearScale([min, max], [h - 2, 2], { nice: false });
+    const step: number = count > 1 ? w / (count - 1) : w;
+    const points: Pt[] = values.map((value, i) => ({
+      x: i * step,
+      y: Number.isFinite(value) ? scale.to(value) : 0,
+      defined: Number.isFinite(value),
+    }));
+
+    const left: number = count > 1 ? (from / (count - 1)) * w : 0;
+    const right: number = count > 1 ? (to / (count - 1)) * w : w;
+    return {
+      height: h,
+      d: areaPath(points, h, 'linear'),
+      x: left,
+      width: Math.max(2, right - left),
+      leftX: left,
+      rightX: right,
+      caption: `${from + 1}–${to + 1} of ${count}`,
+    };
+  });
+
+  /**
+   * One handler for all four grips.
+   *
+   * Both edges move, the middle pans, and a press on empty track starts a fresh window — the three
+   * gestures a reader expects from a control that looks like this. Listeners go on the window so a
+   * drag that leaves the strip still tracks and still ends.
+   */
+  const onBrushDown = (event: PointerEvent, part: 'left' | 'right' | 'body' | 'track'): void => {
+    const element: HTMLElement | null = host();
+    const count: number = allRows().length;
+    if (!element || count < 2) return;
+    event.preventDefault();
+    // The grips and the window sit INSIDE the strip, which carries the track handler. Without this
+    // both fire on one press: the track reads the press as "start a new window here" and the grip
+    // then drags from a range that was replaced a moment ago, so an edge drag jumps to the far side
+    // before it moves.
+    event.stopPropagation();
+    const box: DOMRect = element.getBoundingClientRect();
+    const w: number = box.width || 1;
+    const at = (clientX: number): number =>
+      Math.max(0, Math.min(count - 1, Math.round(((clientX - box.left) / w) * (count - 1))));
+
+    const start: Range = range();
+    const anchor: number = at(event.clientX);
+    if (part === 'track') setRange([anchor, anchor + Math.max(1, start[1] - start[0])]);
+
+    const move = (moved: PointerEvent): void => {
+      const here: number = at(moved.clientX);
+      if (part === 'left') setRange([Math.min(here, start[1]), start[1]]);
+      else if (part === 'right') setRange([start[0], Math.max(here, start[0])]);
+      else if (part === 'body') {
+        const shift: number = here - anchor;
+        setRange([start[0] + shift, start[1] + shift]);
+      } else setRange([Math.min(anchor, here), Math.max(anchor, here)]);
+    };
+    const up = (): void => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
 
   const financialTooltip: Computed<TooltipView | null> = computed<TooltipView | null>(() => {
     if (props.tooltip === false) return null;
@@ -1130,6 +1292,10 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       hoverIndex.set(index);
     },
 
+    hasBrush: (): boolean => props.brush === true && !isRadial() && allRows().length > 1,
+    brush: (): BrushView => brush(),
+    onBrushDown,
+
     isFinancial: (): boolean => isFinancial(),
     financial: (): FinancialView => financial(),
     /**
@@ -1145,7 +1311,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       event.preventDefault();
       const box: DOMRect = element.getBoundingClientRect();
       const at: number = (event.clientX - box.left) / (box.width || 1);
-      setRange(zoomRange(range(), rows().length, event.deltaY > 0 ? 1.2 : 1 / 1.2, at));
+      setRange(zoomRange(range(), allRows().length, event.deltaY > 0 ? 1.2 : 1 / 1.2, at));
     },
     /**
      * Drag to pan, in whole bars.
@@ -1162,7 +1328,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       const perBar: number = (element.getBoundingClientRect().width || 1) / Math.max(1, startRange[1] - startRange[0] + 1);
       const move = (moved: PointerEvent): void => {
         const bars: number = Math.round((startX - moved.clientX) / perBar);
-        setRange(panRange(startRange, rows().length, bars));
+        setRange(panRange(startRange, allRows().length, bars));
       };
       const up = (): void => {
         window.removeEventListener('pointermove', move);

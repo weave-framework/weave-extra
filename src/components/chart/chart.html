@@ -122,7 +122,7 @@
 
         @for (tick of xTicks(); track tick.key) {
           <text class="weave-chart__label" x={{ tick.x }} y={{ tick.y }} text-anchor={{ tick.anchor }}
-                fill={{ ink.label }}>{{ tick.label }}</text>
+                transform={{ tick.transform }} fill={{ ink.label }}>{{ tick.label }}</text>
         }
 
         }
@@ -147,6 +147,24 @@
       }
     }
   </div>
+
+  @if (hasBrush()) {
+    @let strip = brush();
+    <svg class="weave-chart__brush" width={{ width() }} height={{ strip.height }}
+         role="slider" tabindex="0" aria-label="Visible range" aria-valuetext={{ strip.caption }}
+         on:pointerdown={{ (e: PointerEvent) => onBrushDown(e, 'track') }}>
+      <path class="weave-chart__brush-shape" d={{ strip.d }} />
+      <rect class="weave-chart__brush-window" x={{ strip.x }} y={{ 0 }}
+            width={{ strip.width }} height={{ strip.height }}
+            on:pointerdown={{ (e: PointerEvent) => onBrushDown(e, 'body') }} />
+      <rect class="weave-chart__brush-grip" x={{ strip.leftX - 4 }} y={{ 0 }}
+            width={{ 8 }} height={{ strip.height }}
+            on:pointerdown={{ (e: PointerEvent) => onBrushDown(e, 'left') }} />
+      <rect class="weave-chart__brush-grip" x={{ strip.rightX - 4 }} y={{ 0 }}
+            width={{ 8 }} height={{ strip.height }}
+            on:pointerdown={{ (e: PointerEvent) => onBrushDown(e, 'right') }} />
+    </svg>
+  }
 
   @if (showLegend()) {
     <div class="weave-chart__legend" role="group" aria-label="Series">

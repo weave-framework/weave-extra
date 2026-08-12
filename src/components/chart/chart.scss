@@ -123,6 +123,48 @@
   opacity: 0.35;
 }
 
+/* ── brush: the overview strip and its window ── */
+
+.weave-chart__brush {
+  display: block;
+  inline-size: 100%;
+  // The strip is a control, so it must not be mistaken for a second plot: no axes, and a surface
+  // that reads as a track rather than as a chart area.
+  background: var(--field, #ecedf0);
+  border-radius: 4px;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.weave-chart__brush-shape {
+  fill: var(--weave-chart-1, #4c6286);
+  fill-opacity: 0.35;
+}
+
+.weave-chart__brush-window {
+  fill: var(--accent, #4c6286);
+  fill-opacity: 0.16;
+  stroke: var(--accent, #4c6286);
+  stroke-width: 1;
+  cursor: grab;
+}
+
+.weave-chart__brush-window:active {
+  cursor: grabbing;
+}
+
+// Wider than they look: an 8px hit target on a 2px line is the difference between a handle you can
+// grab and one you keep missing.
+.weave-chart__brush-grip {
+  fill: transparent;
+  cursor: ew-resize;
+}
+
+.weave-chart__brush:focus-visible {
+  outline: 2px solid var(--accent, #4c6286);
+  outline-offset: 1px;
+}
+
 /* ── radial ── */
 
 .weave-chart__slice {

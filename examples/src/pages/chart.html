@@ -184,6 +184,44 @@
   </Demo>
   <CodeTabs id="chart-ohlc" />
 
+  <h2>Showing one part of a long series</h2>
+  <p>
+    <code>brush</code> puts an overview of the whole series under the plot with a window over it. The
+    window is <strong>resizable from both edges</strong>, draggable in the middle, and a drag on empty
+    track starts a new one — that combination is what makes it a control rather than a picture: narrow
+    from the right, then nudge the left edge, without re-selecting from scratch.
+  </p>
+  <p>
+    It works for every cartesian type, because the window is what every mark reads. Nothing about the
+    line below knows a brush exists.
+  </p>
+  <Demo>
+    <!-- #region chart-brush -->
+    <Chart data={{ readings }} x="at" series={{ loadSeries }} brush height={{ 220 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-brush" />
+
+  <h2>Turning the labels</h2>
+  <p>
+    <code>labelRotate</code> takes an angle, or <code>'auto'</code> — which measures, and turns the
+    labels only when the widest one cannot fit its slot. Rotation is a last resort rather than a
+    default: turned text is measurably slower to read, so the axis thins first and turns only when
+    thinning would drop labels that matter.
+  </p>
+  <p>
+    With rotation on, thinning stops: turning is what buys the room, so dropping labels afterwards
+    would throw away exactly what the rotation was for. The bottom margin grows by the label's own
+    length projected onto the vertical, or the longest one is cut off by the edge.
+  </p>
+  <Demo>
+    <!-- #region chart-rotate -->
+    <Chart type="bar" data={{ months() }} x="month" y="revenue"
+           labelRotate={{ -45 }} valueFormat={{ money }} height={{ 240 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-rotate" />
+
   <h2>Sparklines and tiles</h2>
   <p>
     <code>sparkline</code> strips a chart to its marks — no axes, no grid, no legend, no tooltip, no

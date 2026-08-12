@@ -155,6 +155,14 @@ export interface ChartProps<TRow = Record<string, unknown>> {
   rightFormat?: (value: number) => string;
   /** How an x value is written. Defaults to the scale's own formatting. */
   labelFormat?: (value: unknown) => string;
+  /**
+   * Turn the category labels. `'auto'` turns them only when they would otherwise collide.
+   *
+   * Rotation is a last resort, not a default: turned text is measurably slower to read, so the axis
+   * first drops labels to what fits. It earns its place when every label matters — a month axis
+   * where "Sep" and "Oct" are both needed, or product names that cannot be thinned.
+   */
+  labelRotate?: number | 'auto';
 
   /* ── financial only: candlestick and ohlc ── */
 
@@ -168,6 +176,21 @@ export interface ChartProps<TRow = Record<string, unknown>> {
   volume?: Accessor<TRow, number>;
   /** Share of the height the volume pane takes. Default 0.22. */
   volumeHeight?: number;
+
+  /**
+   * An overview strip under the plot with a draggable window — show one part of a long series
+   * without losing sight of the whole.
+   *
+   * The strip draws every row; the window is resizable from BOTH edges, draggable in the middle,
+   * and a drag on empty space starts a new one. That combination is what makes it a control rather
+   * than a picture: a reader narrows from the right, then nudges the left edge, without ever
+   * re-selecting from scratch.
+   *
+   * Works for every cartesian type. Financial charts get one implicitly through {@link zoom}.
+   */
+  brush?: boolean;
+  /** Height of the overview strip in px. Default 48. */
+  brushHeight?: number;
 
   /**
    * The visible window, as inclusive row indices. Uncontrolled when omitted — the chart owns it.
