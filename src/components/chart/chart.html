@@ -74,6 +74,36 @@
             <text class="weave-chart__label" x={{ tick.x }} y={{ tick.y }} text-anchor={{ tick.anchor }}
                   fill={{ ink.label }}>{{ tick.label }}</text>
           }
+        } @else if (isWaterfall()) {
+          @for (line of grid(); track line.key) {
+            <line class="weave-chart__grid" x1={{ line.x1 }} y1={{ line.y1 }} x2={{ line.x2 }} y2={{ line.y2 }}
+                  stroke={{ ink.grid }} />
+          }
+
+          @for (link of waterfallLinks(); track link.key) {
+            <line class="weave-chart__step-link" x1={{ link.x1 }} y1={{ link.y1 }}
+                  x2={{ link.x2 }} y2={{ link.y2 }} stroke={{ ink.axis }} />
+          }
+
+          @for (bar of waterfallBars(); track bar.key) {
+            <path class="weave-chart__bar" d={{ bar.d }} fill={{ bar.color }}>
+              <title>{{ bar.label + ': ' + bar.value }}</title>
+            </path>
+          }
+
+          @for (axis of axisLines(); track axis.key) {
+            <line x1={{ axis.x1 }} y1={{ axis.y1 }} x2={{ axis.x2 }} y2={{ axis.y2 }} stroke={{ ink.axis }} />
+          }
+
+          @for (tick of yTicks(); track tick.key) {
+            <text class="weave-chart__label" x={{ tick.x }} y={{ tick.y }} text-anchor={{ tick.anchor }}
+                  dominant-baseline="middle" fill={{ ink.label }}>{{ tick.label }}</text>
+          }
+
+          @for (tick of xTicks(); track tick.key) {
+            <text class="weave-chart__label" x={{ tick.x }} y={{ tick.y }} text-anchor={{ tick.anchor }}
+                  transform={{ tick.transform }} fill={{ ink.label }}>{{ tick.label }}</text>
+          }
         } @else {
 
         @for (line of grid(); track line.key) {

@@ -23,7 +23,7 @@ export type SeriesType = 'line' | 'area' | 'bar';
  * one row per slice, `x` its label, `y` its value — so moving between a bar chart and a donut is
  * one word.
  */
-export type ChartType = SeriesType | 'pie' | 'donut' | 'candlestick' | 'ohlc';
+export type ChartType = SeriesType | 'pie' | 'donut' | 'candlestick' | 'ohlc' | 'waterfall';
 
 /** Where the four prices live on a row. An array reads as O, H, L, C in that order. */
 export type OhlcAccessors<TRow> =
@@ -219,6 +219,25 @@ export interface ChartProps<TRow = Record<string, unknown>> {
   /** Rising and falling colours. Defaults follow `--weave-chart-up` / `--weave-chart-down`. */
   upColor?: string;
   downColor?: string;
+
+  /* ── waterfall only ── */
+
+  /**
+   * Which rows are absolute balances rather than changes — an opening or closing total.
+   *
+   * A marked step is drawn from the axis rather than from the step before it, and the running total
+   * is **reset** to it. That matters: a closing balance that disagrees with the arithmetic is a
+   * fact about the data, and resetting shows it as the discrepancy it is instead of folding it into
+   * the next section.
+   */
+  total?: Accessor<TRow, boolean>;
+  /**
+   * The lines joining each bar to the next. Default true.
+   *
+   * Not decoration. Without them the eye reads a row of floating bars at unrelated heights; with
+   * them, each bar visibly hands over to the one after — which is the whole claim the chart makes.
+   */
+  connectors?: boolean;
 
   /* ── radial only: pie and donut ── */
 

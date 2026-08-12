@@ -129,6 +129,25 @@ function trend(from: number, drift: number): Point[] {
 }
 // #endregion
 
+// #region cr-waterfall
+/** How a total was arrived at: an opening balance, the things that happened, a closing one. */
+export interface Step extends Record<string, unknown> {
+  stage: string;
+  change: number;
+  /** An absolute balance rather than a change — drawn from the axis, and the run resets to it. */
+  balance?: boolean;
+}
+
+const STEPS: Step[] = [
+  { stage: 'Opening', change: 82_000, balance: true },
+  { stage: 'New business', change: 24_500 },
+  { stage: 'Upsell', change: 9_200 },
+  { stage: 'Churn', change: -14_800 },
+  { stage: 'Discounts', change: -6_400 },
+  { stage: 'Closing', change: 94_500, balance: true },
+];
+// #endregion
+
 export type GridMode = 'y' | 'x' | 'both' | false;
 
 // #region cr-swap-picks
@@ -166,6 +185,8 @@ export interface RecipesContext {
   readings: Reading[];
   share: Slice[];
   sessions: Session[];
+  steps: Step[];
+  isBalance: (row: Step) => boolean;
   revenueTrend: Point[];
   churnTrend: Point[];
   latencyTrend: Point[];
@@ -262,6 +283,8 @@ export function setup(): RecipesContext {
     readings: READINGS,
     share: SHARE,
     sessions: SESSIONS,
+    steps: STEPS,
+    isBalance: (row: Step): boolean => row.balance === true,
     revenueTrend: trend(140_000, 2_400),
     churnTrend: trend(3.1, 0.06),
     latencyTrend: trend(240, -3.2),
@@ -269,8 +292,11 @@ export function setup(): RecipesContext {
 
     // #region cr-format
     // `valueFormat` writes the axis AND the tooltip, so a unit is declared once.
+    // The threshold is on the MAGNITUDE: comparing the signed value shortens 14800 to €15k and
+    // leaves -14800 as €-14800, which is the sort of thing that only shows up on a chart with
+    // negative values in it — a waterfall, for instance.
     money: (value: number): string =>
-      value >= 1000 ? `€${(value / 1000).toFixed(0)}k` : `€${value.toFixed(0)}`,
+      Math.abs(value) >= 1000 ? `€${(value / 1000).toFixed(0)}k` : `€${value.toFixed(0)}`,
     plain: (value: number): string => value.toLocaleString(),
     price: (value: number): string => value.toFixed(2),
     // #endregion

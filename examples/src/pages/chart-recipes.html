@@ -335,6 +335,40 @@
   </Demo>
   <CodeTabs id="cr-range" />
 
+  <h2>16b. Waterfall</h2>
+  <p>
+    A bar chart says how big each thing is. A waterfall says how a total was <strong>arrived at</strong>:
+    you started at one number, a sequence of things happened, you ended at another. Nothing else says
+    that — a stacked bar loses the order and the sign, a line implies the steps are a continuum, and
+    a table makes the reader do the running arithmetic themselves.
+  </p>
+  <p>
+    <code>total</code> marks the rows that are <em>balances</em> rather than changes. Those are drawn
+    from the axis, and the running total <strong>resets</strong> to them. That matters: a stated
+    closing balance that disagrees with the arithmetic is a fact about the data, and resetting shows
+    it as the discrepancy it is instead of folding it into whatever comes next.
+  </p>
+  <p>
+    The connecting lines are not decoration. Without them the eye reads a row of floating bars at
+    unrelated heights; with them, each bar visibly hands over to the one after, which is the whole
+    claim the chart is making. <code>connectors</code> turns them off.
+  </p>
+  <Demo>
+    <!-- #region cr-waterfall -->
+    <Chart type="waterfall" data={{ steps }} x="stage" y="change" total={{ isBalance }}
+           valueFormat={{ money }} height={{ 300 }} yLabel="ARR" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-waterfall" />
+
+  <p>
+    It is the one chart in the "infographic" family that earns its place, and the reason is that it
+    still encodes by <strong>length</strong> — every bar read against the same axis as every other.
+    A funnel puts the data in the width while the eye reads area; a radar gives the same numbers a
+    different-shaped blob depending on which axis you happened to put first. Those are absent on
+    purpose, and a horizontal bar chart is the honest answer to what people reach for a funnel for.
+  </p>
+
   <h2>17. Pie and donut</h2>
   <p>
     Same <code>data</code>, same <code>x</code>, same <code>y</code> — one row per slice, its label and

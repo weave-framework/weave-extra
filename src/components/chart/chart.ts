@@ -26,6 +26,7 @@ import { areaPath, barPath, linePath, type Pt } from './marks.js';
 import { arcCentroid, arcPath, fitArc, groupTail, layoutArcs, toRadians, type Slice } from './arc.js';
 import { candleBody, clampRange, isUp, ohlcPath, panRange, zoomRange, type Bar, type Range } from './financial.js';
 import { clock, Memory, type Clock } from './motion.js';
+import { layoutWaterfall, waterfallExtent, type WaterfallStep } from './waterfall.js';
 import { chartInk, seriesColor, seriesDash } from './palette.js';
 import type { Accessor, ChartPoint, ChartProps, Curve, ResolvedSeries, SeriesConfig, SeriesType } from './types.js';
 
@@ -57,6 +58,8 @@ export type { CurveKind, Pt } from './marks.js';
 export { arcCentroid, arcPath, fitArc, groupTail, layoutArcs, polar, toRadians, TAU } from './arc.js';
 export type { LayoutArcsOptions, Point, Slice } from './arc.js';
 export { candleBody, clampRange, isUp, ohlcPath, panRange, zoomRange } from './financial.js';
+export { layoutWaterfall, waterfallExtent } from './waterfall.js';
+export type { WaterfallInput, WaterfallStep } from './waterfall.js';
 export type { Bar, Range } from './financial.js';
 export { layout, widestLabel } from './layout.js';
 export type { LayoutInput, PlotBox } from './layout.js';
@@ -268,6 +271,11 @@ export interface ChartContext<TRow> {
 
   isFinancial: () => boolean;
   financial: () => FinancialView;
+  isWaterfall: () => boolean;
+  /** The steps as bars, each starting where the one before it ended. */
+  waterfallBars: () => BarMark[];
+  /** The hand-over lines between them. Empty when `connectors` is off. */
+  waterfallLinks: () => GridLine[];
   onWheel: (event: WheelEvent) => void;
   onDragStart: (event: PointerEvent) => void;
 
@@ -475,6 +483,13 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
   const hasRight: Computed<boolean> = computed(() => onAxis('right').length > 0);
 
   const domainOf = (side: 'left' | 'right'): [number, number] => {
+    // A waterfall's axis has to cover every EDGE, not every value: a step of -400 from a running
+    // total of 1000 reaches down to 600, and an axis built from the values alone puts it off the
+    // bottom of the plot.
+    if (isWaterfall() && side === 'left') {
+      const [min, max]: [number, number] = waterfallExtent(waterfallSteps());
+      return [props.yMin ?? min, props.yMax ?? max];
+    }
     const values: number[] = [];
     for (const { s, index } of onAxis(side)) {
       rows().forEach((_, i) => {
@@ -1111,6 +1126,112 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     () => props.type === 'candlestick' || props.type === 'ohlc'
   );
 
+  /* ────────────────────────── waterfall ──────────────────────────
+   *
+   * A bar chart says how big each thing is. A waterfall says how a total was ARRIVED at: you
+   * started at one number, a sequence of things happened, you ended at another. It shares the whole
+   * cartesian frame — plot box, band, value scale, ticks, grid, clock — and differs only in where
+   * each bar starts, which is what makes it worth having as a type rather than as its own chart. */
+
+  const isWaterfall: Computed<boolean> = computed(() => props.type === 'waterfall');
+
+  const waterfallSteps: Computed<WaterfallStep[]> = computed<WaterfallStep[]>(() => {
+    if (!isWaterfall()) return [];
+    const y: Accessor<TRow, number> | undefined = props.y;
+    const value = (row: TRow): number => (y === undefined ? NaN : asNumber(read(y, row)));
+    const isTotal: Accessor<TRow, boolean> | undefined = props.total;
+    return layoutWaterfall(
+      rows().map((row, i) => ({
+        label: String(xValues()[i] ?? ''),
+        value: value(row),
+        total: isTotal === undefined ? false : Boolean(read(isTotal, row)),
+      }))
+    );
+  });
+
+  const waterfallBars: Computed<BarMark[]> = computed<BarMark[]>(() => {
+    const steps: WaterfallStep[] = waterfallSteps();
+    const band: BandScale | null = xBand();
+    const scale: Scale<number> = yScale();
+    const box: PlotBox = plot();
+    if (steps.length === 0 || !band) return [];
+    const format: (value: number) => string = props.valueFormat ?? scale.format;
+    const width: number = Math.max(1, band.bandwidth);
+    return steps.map((step, i) => {
+      const base: number = scale.to(step.from);
+      // Each bar grows from its OWN base rather than from the axis, so the run reads as a hand-over
+      // down the line instead of as a row of columns sprouting together.
+      const tip: number = memory.at(`wf-${step.index}`, scale.to(step.to), motion.at(i, steps.length), base);
+      const top: number = Math.min(base, tip);
+      const height: number = Math.max(1, Math.abs(tip - base));
+      return {
+        key: `wf-${step.index}`,
+        d: barPath(band.start(step.label) + 1, top, Math.max(1, width - 2), height),
+        color:
+          step.direction === 'total'
+            ? 'var(--weave-chart-1, #4c6286)'
+            : step.direction === 'up'
+              ? (props.upColor ?? 'var(--weave-chart-up, #2f9e6a)')
+              : (props.downColor ?? 'var(--weave-chart-down, #d1483f)'),
+        label: step.label,
+        // A total states where you are; a step states how far it moved, and the sign is the point.
+        value: step.total ? format(step.value) : `${step.value > 0 ? '+' : ''}${format(step.value)}`,
+      };
+    });
+  });
+
+  const waterfallLinks: Computed<GridLine[]> = computed<GridLine[]>(() => {
+    if (props.connectors === false) return [];
+    const steps: WaterfallStep[] = waterfallSteps();
+    const band: BandScale | null = xBand();
+    const scale: Scale<number> = yScale();
+    if (!band) return [];
+    const out: GridLine[] = [];
+    for (let i = 0; i < steps.length - 1; i++) {
+      // Nothing is handed over to a total: it is measured from the axis, so a line into it would
+      // claim a continuity that is not there.
+      if (steps[i + 1].total) continue;
+      const y: number = scale.to(steps[i].to);
+      out.push({
+        key: `wf-link-${i}`,
+        x1: band.start(steps[i].label) + 1,
+        y1: y,
+        x2: band.start(steps[i + 1].label) + band.bandwidth - 1,
+        y2: y,
+      });
+    }
+    return out;
+  });
+
+  const waterfallTooltip: Computed<TooltipView | null> = computed<TooltipView | null>(() => {
+    if (props.tooltip === false) return null;
+    const index: number | null = hoverIndex();
+    const at: { x: number; y: number } | null = pointer();
+    const steps: WaterfallStep[] = waterfallSteps();
+    if (index === null || at === null || !steps[index]) return null;
+    const step: WaterfallStep = steps[index];
+    const scale: Scale<number> = yScale();
+    const format: (value: number) => string = props.valueFormat ?? scale.format;
+    return {
+      x: at.x,
+      y: at.y,
+      title: step.label,
+      rows: step.total
+        ? [{ label: 'Total', value: format(step.value), color: 'var(--weave-chart-1, #4c6286)' }]
+        : [
+            {
+              label: step.value < 0 ? 'Decrease' : 'Increase',
+              value: `${step.value > 0 ? '+' : ''}${format(step.value)}`,
+              color: waterfallBars()[index]?.color ?? '',
+            },
+            // The running total is the question the reader came with — a step's own size is only
+            // half of "how did we get here".
+            { label: 'Running', value: format(step.to), color: 'var(--weave-chart-1, #4c6286)' },
+          ],
+      text: undefined,
+    };
+  });
+
   const barAt: Computed<(row: TRow) => Bar> = computed(() => {
     const spec = props.ohlc;
     if (!spec) return (): Bar => ({ open: NaN, high: NaN, low: NaN, close: NaN });
@@ -1448,6 +1569,9 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
 
     isFinancial: (): boolean => isFinancial(),
     financial: (): FinancialView => financial(),
+    isWaterfall: (): boolean => isWaterfall(),
+    waterfallBars: (): BarMark[] => waterfallBars(),
+    waterfallLinks: (): GridLine[] => waterfallLinks(),
     /**
      * Wheel to zoom, about the pointer.
      *
@@ -1519,7 +1643,13 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     tooltip: (): TooltipView | null =>
       props.sparkline
         ? null
-        : isRadial() ? radialTooltip() : isFinancial() ? financialTooltip() : tooltip(),
+        : isRadial()
+          ? radialTooltip()
+          : isFinancial()
+            ? financialTooltip()
+            : isWaterfall()
+              ? waterfallTooltip()
+              : tooltip(),
     crosshair: (): number | null => {
       if (isRadial()) return null;
       if (isFinancial()) {

@@ -152,6 +152,7 @@ Consequences worth knowing:
 | `donut` | Wedges with a hole and a total | `x` = label, `y` = value |
 | `candlestick` | Body plus high–low wick | `ohlc` |
 | `ohlc` | High–low bar with open/close ticks | `ohlc` |
+| `waterfall` | Steps from one total to another | `y` = the change |
 
 `sparkline` is a modifier rather than a type — see [§11](#11-sparklines-and-metric).
 
@@ -458,6 +459,50 @@ competes with the plot it controls.
 
 ---
 
+## 9b. Waterfall
+
+```html
+<Chart type="waterfall" data={{ steps }} x="stage" y="change" total={{ isBalance }} />
+```
+
+A bar chart says how big each thing is. A waterfall says how a total was **arrived at**: you started
+at one number, a sequence of things happened, you ended at another. Nothing else says that — a
+stacked bar loses the order and the sign, a line implies the steps are a continuum, and a table
+makes the reader do the running arithmetic themselves.
+
+`y` is the **change** each step contributes, not its absolute size. Each bar starts where the one
+before it ended, so its height is its own contribution read against the same axis as everything
+else.
+
+| Option | | |
+| --- | --- | --- |
+| `total` | accessor | Rows that are balances rather than changes |
+| `connectors` | `true` | The lines joining each bar to the next |
+| `upColor` / `downColor` | | Rising and falling, as on a financial chart |
+
+**`total` is the part worth understanding.** A marked row is drawn from the axis rather than from
+the step before, and the running total is **reset** to it. So a stated closing balance that
+disagrees with the arithmetic stays visible as the discrepancy it is, instead of being folded into
+whatever comes next. Opening and closing balances are the usual case.
+
+The axis covers every **edge**, not every value: a step of −400 from a running total of 1000 reaches
+down to 600, and an axis built from the values alone would put that bar's foot off the plot.
+
+The connectors are not decoration. Without them the eye reads a row of floating bars at unrelated
+heights; with them each bar visibly hands over to the one after, which is the whole claim the chart
+makes. There is no connector *into* a total, because nothing is handed over to it.
+
+### Why this one and not a funnel
+
+It still encodes by **length** — every bar measured against one axis. A funnel puts the data in the
+width while the eye reads area, and its trapezoids make a 10% drop look like a cliff or a nudge
+depending on how tall you drew it. A radar gives the same numbers a different-shaped blob depending
+on which axis you happened to put first. Both are in [§14.6](#146-what-is-not-there) and staying
+there; a **horizontal bar chart** ([§4.4](#44-on-its-side)) is the honest answer to what people
+reach for a funnel for, and it arrived in the same release.
+
+---
+
 ## 10. Pie and donut
 
 ```html
@@ -547,6 +592,9 @@ The arrow carries the direction as a second channel, so the tile survives greysc
 
   // financial
   ohlc volume volumeHeight range onRangeChange zoom upColor downColor
+
+  // waterfall
+  total connectors
 
   // radial
   innerRadius startAngle endAngle padAngle maxSlices otherLabel centerLabel sliceLabels
