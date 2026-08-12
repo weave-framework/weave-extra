@@ -118,25 +118,18 @@ function textFilter(props: FilterProps, type: string): Node {
 /**
  * A list to pick one value from — the control for booleans and enums.
  *
- * No type argument, and no option accessors — both for the same reason.
+ * The type argument is named, which it could not be before 3.0.0: a generic component's default
+ * export used to arrive with its type parameter flattened to `unknown`, so `Select<Option>(…)` had
+ * nothing to instantiate and `options` was checked as `unknown[]` — no checking at all. That was
+ * W-8, and it is fixed; naming `Option` here is what makes the option shape checked.
  *
- * `setup` is generic, but the compiler emits the DEFAULT export as
- * `(props: Parameters<typeof setup>[0], slots?) => Node`, and `Parameters<…>` of an uninstantiated
- * generic resolves its parameter to `unknown` — not to the declared default. So `Select<Option>(…)`
- * has nothing to instantiate and is a compile error, and `optionValue: (option: Option) => …` does
- * not fit `(item: unknown) => …` either. Recorded as W-8.
- *
- * The accessors are optional and their defaults read `item.value` and `item.label`, which is exactly
- * what `Option` is — so dropping them changes nothing at runtime and costs no cast. That is the whole
- * workaround: build options in the shape `<Select>` already assumes.
- *
- * It also means `options` here is effectively UNCHECKED — a template or a call passing a malformed
- * option array compiles clean, because the contract it is checked against is `unknown[]`. Keep
- * `Option` explicit on the way in, since the compiler will not.
+ * No `optionValue`/`optionLabel`, deliberately. 3.0.0 requires both for an option type the defaults
+ * cannot read, and `Option` is not one — it carries `value`, which is exactly what they read. An
+ * option type that did not would now fail to compile rather than render a column of blanks.
  */
 function selectFilter(props: FilterProps, options: () => Option[]): Node {
   return asNode(
-    Select({
+    Select<Option>({
       /**
        * A getter. `<Select>` reads `props.options` reactively — and refuses to open at all while the
        * list is empty — so an enum filter built before its table arrived would be a control that

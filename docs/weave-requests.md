@@ -1,13 +1,14 @@
 # Requests for `@weave-framework`
 
 Findings from building `@weave-framework/extra` that belong in the framework rather than around it.
-W-4 … W-7 were reproduced against 2.1.0 and shipped in **2.2.0**; this package now installs that
-release from npm rather than linking a local checkout. W-8 is open against 2.2.0.
+W-4 … W-7 were reproduced against 2.1.0 and shipped in **2.2.0**. W-8 was reported against 2.2.0 and
+shipped in **3.0.0**, which is a major because closing it properly required narrowing a type. This
+package installs from npm; nothing here is linked.
 
 W-1 … W-3 were reported earlier and applied (`c10be506`, `d69a8f77`, `d1b7c6b0`). This file starts at
 W-4.
 
-**Status: W-4 … W-7 are released in 2.2.0 and verified against this package from npm. W-8 is open.**
+**Status: all five are released and verified against this package from npm.**
 
 | | fix | weave commit |
 |---|---|---|
@@ -15,7 +16,7 @@ W-4.
 | W-5 | a component's synthesized default returns `Node` | `45e49bdc` |
 | W-6 | `Table` — a second header row | `ac43c6ff` |
 | W-7 | `Table` — a virtual body | `4962a963` |
-| W-8 | a generic component's synthesized default loses its type parameter | open |
+| W-8 | a generic component's props no longer collapse to `unknown` | `1fb0dd35` (+ `af4343a0`, the accessors it exposed) |
 
 One more was needed to consume them: `e502f448` (compiler — a comment between the pieces of a split
 template is not a non-static template). Without it the published CLI cannot parse the new `Table`
@@ -241,38 +242,44 @@ how many frames each row costs, and every other long list of `ref`-bearing compo
 
 ---
 
-## W-8 — a generic component's props are checked against `unknown`
+## W-8 — a generic component's props are checked against `unknown` — FIXED in 3.0.0
 
-**Full specification: [w-8-generic-component-props.md](w-8-generic-component-props.md)** — written to
-be handed to the framework repo as-is.
+**Specification as submitted: [w-8-generic-component-props.md](w-8-generic-component-props.md).**
 
-A component whose `setup` is generic ships a default export with the type parameter thrown away. Both
-producers flatten it — `tools/ui-typed-default.mjs` (`Parameters<typeof setup>[0]`, the shipped
-`.d.ts`) and `packages/check/src/emit.ts:493` (`__WeavePropsOf<typeof setup>`, the virtual module) —
-and an uninstantiated generic resolves its parameter to `unknown`, not to the declared default.
+A component whose `setup` was generic shipped a default export with the type parameter thrown away.
+Both producers flattened it — `tools/ui-typed-default.mjs` (`Parameters<typeof setup>[0]`, the
+shipped `.d.ts`) and `packages/check/src/emit.ts` (`__WeavePropsOf<typeof setup>`, the virtual
+module) — and an uninstantiated generic resolves its parameter to `unknown`, not to the declared
+default. Six components: `autocomplete`, `list`, `select`, `table`, `tabs`, `tree`.
 
-Affects `autocomplete`, `list`, `select`, `table`, `tabs`, `tree`.
-
-The imperative symptom is loud:
-
-```ts
-Select<Option>({ options })                       // TS2558: Expected 0 type arguments, but got 1
-Select({ options, optionValue: (o: Option) => o.value })
-                                                  // TS2322: '(o: Option) => string' vs '(item: unknown) => string'
-```
-
-The template symptom is silent, and worse. `emit.ts:283` checks a tag's props as
-`NonNullable<Parameters<typeof Select>[0]>`, so `options` is `unknown[]` and
+The loud half was `Select<Option>(…)` refusing to compile. The quiet half mattered more: a template
+checked its props against that same flattened default, so `options` was `unknown[]` and
 
 ```ts
 { options: [{ nothing: 'like an option' }, 42, null] }
 ```
 
-compiles clean. Verified with plain `tsc` against 2.2.0.
+compiled clean — with no way for an author to opt out, because a template cannot write a type
+argument.
 
-**Correction to an earlier note here**: this was first written up as affecting imperative call sites
-only, on the assumption that a template checks against `setup` rather than against the emitted
-default. It does not. The probe above is what settled it.
+### What shipped
 
-**Workaround in this package**: build options in the shape `<Select>` already assumes and omit the
-accessors — their defaults read exactly those fields. Only works because the shape happens to match.
+`1fb0dd35` re-declares the parameters from the source onto the synthesized default (they cannot be
+recovered by substitution over `typeof setup`; the list has to be written out), through **one reader
+called by both producers**, so the shipped `.d.ts` and the editor cannot check different contracts.
+Templates now check props by **calling** the component, so the parameter is inferred from what is
+passed rather than re-flattened.
+
+`af4343a0` is the part the spec's acceptance criterion 4 forced and I had not foreseen: restoring the
+type parameter alone did **not** make the reported case fail, because `SelectProps<T>` asked nothing
+of `T` — any array satisfied it. `<Select>`/`<Autocomplete>` now require `optionValue` + `optionLabel`
+for an option type the defaults cannot read. That is a break, hence the major.
+
+### What it cost this package
+
+Nothing. `Option` here is `{ value: string; label: string }` — self-describing, so the accessors stay
+optional and the filter row compiled against 3.0.0 unchanged. The workaround came out: `selectFilter`
+names `Select<Option>` again, which is what makes its option shape checked at all.
+
+Verified before and after against the shipped declaration — all four reported cases reproduced on
+2.2.0 and behave on 3.0.0.

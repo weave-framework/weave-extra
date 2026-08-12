@@ -5,6 +5,10 @@
 **Reported from:** `@weave-framework/extra` — the table plugin's filter row
 **Severity:** silent loss of type checking in templates; hard compile errors imperatively
 
+> **Resolved in 3.0.0** — `1fb0dd35` (the type parameter, both producers, and the template path) and
+> `af4343a0` (the required accessors). Kept as submitted; what actually shipped, and the one thing
+> this document did not foresee, is at the end under [Outcome](#outcome).
+
 ---
 
 ## Summary
@@ -217,3 +221,51 @@ template, no way to get the checking back at all.
 W-5 fixed the **return** type of this same synthesized default (`unknown` → `Node`). This is the same
 declaration and the same class of loss, one field over: its **type parameters**. Fixing it in the
 same place keeps the two consistent.
+
+---
+
+## Outcome
+
+Shipped in **3.0.0**, in two commits.
+
+**`1fb0dd35`** — the type parameters are re-declared from the source onto the synthesized default,
+which is route A above; they cannot be recovered by substitution over `typeof setup`, so the list has
+to be written out. Done through **one reader called by both producers**, which is criterion 6. A
+non-generic component's default is byte-for-byte unchanged (criterion 5), and a generic `setup` with
+no annotation on its props parameter now fails the `ui` build naming the component rather than
+degrading to `unknown` (criterion 8).
+
+The declaration alone did not fix the template, which re-flattened it through
+`NonNullable<Parameters<typeof Child>[0]>`. Props are now checked by **calling** the component, so
+the parameter is inferred from what is passed. One visible consequence: TypeScript pins a prop error
+in a call argument to the value rather than the key, so a wrong prop type is reported on its
+expression; both spans stay mapped.
+
+**`af4343a0`** — what this document got wrong. It assumed restoring the type parameter would make
+case 1 fail. It does not: `SelectProps<T>` asked nothing of `T`, so `[{ nothing: 'x' }, 42, null]`
+still satisfied it. Criterion 4 therefore forced a second change — `<Select>`/`<Autocomplete>` now
+require `optionValue` + `optionLabel` for an option type the defaults cannot read. That narrows a
+type and so is a breaking change, which is why the release is a major rather than a patch.
+
+The distinction drawn there is *self-describing*: a plain string, or an object carrying `value`
+(`label` falls back to it). Those keep the accessors optional, so a `{ value, label }` list, a string
+list, an empty list, and a domain object that already supplies its accessors are all unchanged. The
+condition is non-distributive (`[T] extends [ … ]`), so a union of option shapes qualifies only if
+all of it does, and an empty `options={{ [] }}` (`T = never`) stays on the optional side instead of
+collapsing the props type to `never`.
+
+### Cost to this package: none
+
+`Option` in the filter row is `{ value: string; label: string }` — self-describing, so the accessors
+stay optional and `src` compiled against 3.0.0 with no change. The workaround came out: `selectFilter`
+names `Select<Option>` again, which is now what makes its option shape checked.
+
+Re-ran all four cases against the shipped 3.0.0 declaration. Case 1 fails — and the message names the
+real requirement rather than a type mismatch:
+
+```
+TS2322: Type '{ options: (number | { nothing: string; } | null)[]; }' is not assignable to 'TemplateProps'.
+  … is missing the following properties: optionValue, optionLabel
+```
+
+Cases 2, 3 and 4 all compile, with `onChange` receiving `SelectValue<Option>`.
