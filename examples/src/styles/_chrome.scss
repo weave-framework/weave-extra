@@ -545,6 +545,9 @@ $topbar-h: var(--weave-toolbar-height, 52px);
 .chart-stage {
   display: grid;
   align-content: start;
+  // Positioned, because the morph lays its overlay across this box and needs something to be
+  // absolute against.
+  position: relative;
   block-size: 348px;
   inline-size: 100%;
   overflow: hidden;

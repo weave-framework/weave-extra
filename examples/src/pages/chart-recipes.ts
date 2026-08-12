@@ -13,7 +13,14 @@
 
 import { computed, onCleanup, signal, type Computed, type Signal } from '@weave-framework/runtime';
 import Button from '@weave-framework/ui/button';
-import Chart, { prefersReducedMotion, type ChartPoint, type SeriesConfig } from '@weave-framework/extra/components/chart';
+import Chart, {
+  captureChart,
+  morph,
+  prefersReducedMotion,
+  type ChartPoint,
+  type MarkShape,
+  type SeriesConfig,
+} from '@weave-framework/extra/components/chart';
 import Metric from '@weave-framework/extra/components/metric';
 import Demo from '../lib/demo/demo.js';
 import CodeTabs from '../lib/code-tabs/code-tabs.js';
@@ -213,6 +220,11 @@ export interface RecipesContext {
   staggered: () => boolean;
   staggerText: () => string;
   toggleStagger: () => void;
+  setStage: (node: HTMLElement) => void;
+  morphing: () => boolean;
+  modeText: () => string;
+  toggleMode: () => void;
+  chartAnimates: () => boolean;
 }
 
 export function setup(): RecipesContext {
@@ -242,12 +254,57 @@ export function setup(): RecipesContext {
    */
   const forward: Signal<boolean> = signal<boolean>(true);
   const staggered: Signal<boolean> = signal<boolean>(true);
+  const morphing: Signal<boolean> = signal<boolean>(true);
+  let stage: HTMLElement | null = null;
+  let running: { finish: () => void } | null = null;
   let timer: number | undefined;
   // A swap in flight when the page goes away would set a signal on a component that no longer
   // exists — cheap to prevent, and the kind of thing that only shows up as a console error later.
   onCleanup(() => {
     if (timer !== undefined) clearTimeout(timer);
+    running?.finish();
   });
+
+  // #region cr-morph
+  /**
+   * Turn the chart on the stage into the next one, marks and all.
+   *
+   * The old chart's marks are sampled BEFORE the swap, because a moment later they do not exist —
+   * the component is gone and its geometry with it. What is captured is not the data but the
+   * outlines, which is the only thing two unrelated charts have in common and, as it turns out,
+   * enough to interpolate.
+   */
+  const runMorph = (id: PickId): void => {
+    running?.finish();
+    running = null;
+    const svg: SVGSVGElement | null = stage?.querySelector<SVGSVGElement>('.weave-chart__svg') ?? null;
+    // Nobody watching, or nothing to morph from: swap and be done. A morph in a hidden tab would
+    // hold the incoming chart at zero opacity waiting for frames that never come.
+    if (!stage || !svg || document.hidden || prefersReducedMotion()) {
+      chosen.set(id);
+      return;
+    }
+    const from: MarkShape[] = captureChart(svg);
+    const host: HTMLElement = stage;
+    chosen.set(id);
+    /**
+     * One microtask, not one frame.
+     *
+     * The new chart exists synchronously — its marks are in the DOM the instant the signal is set —
+     * but it renders at `width="0"` until `onMount` runs and measures the container, and `onMount`
+     * is deferred by exactly one microtask. Capturing on the same tick therefore samples a chart
+     * squashed into a 1px column, and the morph would suck the whole plot into the left margin.
+     *
+     * A frame would work too, and would be worse: frames do not arrive in a background tab, so the
+     * morph would be left holding the incoming chart at zero opacity until the watchdog rescued it.
+     * Microtasks always run.
+     */
+    queueMicrotask(() => {
+      const next: SVGSVGElement | null = host.querySelector<SVGSVGElement>('.weave-chart__svg');
+      if (next && next.getBoundingClientRect().width > 1) running = morph(host, from, next, { duration: 620 });
+    });
+  };
+  // #endregion
 
   const GRIDS: GridMode[] = ['y', 'x', 'both', false];
   const ROTATIONS: (number | 'auto')[] = [-45, -90, 30, 'auto', 0];
@@ -422,6 +479,10 @@ export function setup(): RecipesContext {
         return;
       }
       forward.set(PICKS.findIndex((p) => p.id === id) > PICKS.findIndex((p) => p.id === chosen()));
+      if (morphing()) {
+        runMorph(id);
+        return;
+      }
       // A crossfade someone has asked not to see is not a courtesy. Swap outright.
       if (prefersReducedMotion()) {
         chosen.set(id);
@@ -455,12 +516,31 @@ export function setup(): RecipesContext {
      * and never again. The `@switch` mints a new wrapper on every pick, so the animation is
      * guaranteed a first frame.
      */
-    enterClass: (): string => `chart-enter ${forward() ? 'from-right' : 'from-left'}`,
+    enterClass: (): string =>
+      // Nothing in morph mode: a CSS slide over the top would drag the marks sideways while they
+      // are busy bending into their new shape, and the two motions read as one broken one.
+      morphing() ? '' : `chart-enter ${forward() ? 'from-right' : 'from-left'}`,
     staggered: (): boolean => staggered(),
     staggerText: (): string => (staggered() ? 'on' : 'off'),
     toggleStagger: (): void => {
       staggered.set(!staggered());
     },
+
+    setStage: (node: HTMLElement): void => {
+      stage = node;
+    },
+    morphing: (): boolean => morphing(),
+    modeText: (): string => (morphing() ? 'morph' : 'swap'),
+    toggleMode: (): void => {
+      running?.finish();
+      running = null;
+      pending.set(null);
+      morphing.set(!morphing());
+    },
+    // In morph mode the chart must arrive at its FINAL shape immediately: the overlay is the
+    // animation, and a chart still growing underneath would be measured mid-entrance and morphed
+    // into a plot that never existed.
+    chartAnimates: (): boolean => !morphing(),
     chosenNote: (): string => {
       const id: PickId = pending() ?? chosen();
       return PICKS.find((pick) => pick.id === id)?.note ?? '';

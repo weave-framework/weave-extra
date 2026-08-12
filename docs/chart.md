@@ -556,6 +556,8 @@ import Chart, {
   candleBody, ohlcPath, isUp, clampRange, zoomRange, panRange,
   // layout
   layout, widestLabel,
+  // morphing one chart into another — see 14.5
+  morph, captureChart, sampleShape, alignRing, parseColor,
   type ChartProps, type SeriesConfig, type ChartPoint, type ChartType, type SeriesType, type Curve,
 } from '@weave-framework/extra/components/chart';
 
@@ -588,21 +590,49 @@ charts tell most often: three months of missing revenue drawn as a smooth climb.
 Width always follows the container through a `ResizeObserver`; only `height` is a prop. A chart in a
 container with no width renders nothing until it has one.
 
-### 14.5 Do not morph between unrelated charts
+### 14.5 Two different transitions, and which claim each makes
 
-Hand a mounted chart a new dataset and every mark travels to its new place — that is what the
-animation is for, and it is right when the **same series** changes: new month, refreshed query,
-a filter applied.
+Hand a mounted chart a new dataset and every mark travels to its new place. That is the **update**
+animation, and its claim is strong: *this* bar is *that* bar, and the value moved. True when the
+same series changes — new month, refreshed query, a filter applied — and only then.
 
-It is wrong when the **subject** changes. Month 3 of revenue is not session 3 of a market, and a bar
-sliding into a candle asserts a relationship between two numbers that have none. For a picker
-between unrelated charts, swap the component instead — fade the old one out, mount the new one, and
-let it play the entrance it already has. The engine gives you the good transition by being allowed
-to mount, not by being made to interpolate.
+Switching to an unrelated chart is a different question, because there is nothing to pair by.
+Twelve bars against ninety candles, a filled ring against a stroked line: no correspondence exists,
+so none can be interpolated. `morph()` transitions those anyway, on the one thing every mark shares:
 
-Sequence that swap on a **timer**, not on `transitionend`. A CSS transition in a hidden tab is
-created and never advances, so there is no end event: a picker built on one works until someone
-switches tabs mid-click and comes back to a stage frozen half-faded.
+```ts
+import { captureChart, morph } from '@weave-framework/extra/components/chart';
+
+const from = captureChart(currentSvg);   // sample the outlines BEFORE the swap
+choice.set(next);                        // the old chart is gone after this
+queueMicrotask(() => morph(stage, from, stage.querySelector('.weave-chart__svg')));
+```
+
+`path`, `rect`, `circle` and `line` all descend from `SVGGeometryElement`, so the browser will hand
+back a point at any distance along any of them. Sampled into equal-length rings, two shapes
+interpolate — a bar really does bend into a slice.
+
+Its claim is the weaker one, deliberately: **this display is becoming that one**. Marks pair by
+position along the axis, not by identity, and the motion says nothing about which number became
+which — because between two unrelated datasets, nothing did.
+
+Three details decide whether it reads as one shape changing or as shapes trading places. Rings are
+**rotated to align** before interpolating, or the shape turns inside out on the way across. Marks
+are paired **left to right**, so the change runs along the axis. Pairing is **proportional** rather
+than enter-and-exit, so twelve bars becoming four slices is groups of three converging and landing
+on top of each other, and nothing appears out of nowhere.
+
+Two traps, both about time rather than geometry:
+
+- Capture the outgoing chart **before** setting the signal. A moment later the component is gone and
+  its geometry with it.
+- Start the morph on a **microtask**, not a frame. The incoming chart's marks exist synchronously
+  but render at `width="0"` until `onMount` measures the container, which is one microtask away;
+  capture on the same tick and you morph into a plot squashed against the left margin. A frame would
+  also work and would be worse — frames never arrive in a background tab.
+
+Sequence a plain crossfade on a **timer** rather than `transitionend`, for the same reason: a CSS
+transition in a hidden tab is created and never advances, so the end event never comes.
 
 ### 14.6 What is not there
 

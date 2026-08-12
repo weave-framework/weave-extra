@@ -421,29 +421,56 @@
     units, different marks, and one of them has no axes at all. Pick any of them, in any order.
   </p>
   <p>
-    The tempting answer is to <em>morph</em> — keep one chart and hand it the next dataset, so every
-    mark travels to its new place. The engine would do it without being asked; that is exactly what
-    the memory in §13 is for. It would also be a <strong>lie</strong>. Month 3 of revenue is not
-    session 3 of a market, and a bar sliding into a candle asserts a relationship between two numbers
-    that have none. Morphing is right when the same series changes and wrong when the subject does.
+    They <strong>morph</strong>. The bars do not fade out under the candles — each outline bends into
+    the next one, in real time, and lands exactly on it.
   </p>
   <p>
-    So the outgoing chart leaves whole and the incoming one arrives whole — 160ms out, then the swap.
-    What makes that beautiful rather than abrupt is that the new chart is genuinely
-    <strong>mounting</strong>, and a mounting chart already animates itself in: bars grow from the
-    baseline, lines draw, slices sweep. The transition is not written; it is the entrance every chart
-    already has, uncovered by getting out of its way.
+    Two charts this different share nothing that can be interpolated: twelve bars against ninety
+    candles, a filled ring against a stroked line, four colours against two. Nothing pairs up, which
+    is the usual reason libraries settle for a crossfade. But there is one thing every mark has in
+    common, and it turns out to be enough — they are all <strong>geometry</strong>.
+    <code>path</code>, <code>rect</code>, <code>circle</code> and <code>line</code> all descend from
+    <code>SVGGeometryElement</code>, so the browser will walk any of them and hand back a point at
+    any distance along their outline. Sample two shapes into the same number of points and they
+    become two lists of equal length, and two lists of equal length interpolate.
+  </p>
+  <p>
+    Three things make it read as one shape changing rather than as shapes trading places.
+    <strong>Rings are rotated to line up</strong> before interpolating — two outlines sampled
+    independently start wherever their own geometry starts, and tweening those directly turns the
+    shape inside out on the way across, which is the ugliest artefact in shape morphing.
+    <strong>Marks are paired left to right</strong>, so the change runs along the axis rather than
+    jumping about the plot. And <strong>pairing is proportional</strong> rather than
+    enter-and-exit: twelve bars becoming four slices means groups of three converging on one slice
+    and ending exactly on top of each other, so nothing ever appears out of nowhere.
+  </p>
+  <p>
+    One thing the motion deliberately does <em>not</em> claim: that any particular number became any
+    other. Marks pair by position, not identity, because between two unrelated datasets there is no
+    identity to pair by. "This display is becoming that one" is true; "this bar is that candle" would
+    not be, and that stricter claim is what the update animation inside a single chart makes — where
+    it <em>is</em> true.
   </p>
   <p>
     The stage is a <strong>fixed box</strong>. Four charts of four natural heights would make the page
     jump under the reader's eyes on every pick, and a picker whose content moves is one you have to
     re-find after each use.
   </p>
+  <p>
+    The switch above turns the morph off, leaving the plain swap: 160ms out, then the new chart
+    mounts and plays its own entrance. Worth comparing — it is the cheaper effect and there is
+    nothing wrong with it.
+  </p>
   <div class="demo-controls">
+    <Button variant="ghost" on:click={{ toggleMode }}>
+      @if (morphing()) { Show me the plain swap } @else { Morph them instead }
+    </Button>
     <Button variant="ghost" on:click={{ toggleStagger }}>
       @if (staggered()) { Bring them in all at once } @else { Choreograph them }
     </Button>
-    <span class="demo-note">stagger: <code>{{ staggerText() }}</code> · {{ chosenNote() }}</span>
+    <span class="demo-note">
+      mode: <code>{{ modeText() }}</code> · stagger: <code>{{ staggerText() }}</code> · {{ chosenNote() }}
+    </span>
   </div>
   <Demo>
     <!-- #region cr-swap -->
@@ -455,30 +482,33 @@
       }
     </div>
 
-    <div class={{ stageClass() }}>
+    <div class={{ stageClass() }} ref={{ setStage }}>
       @switch (chosen()) {
         @case ('revenue') {
           <div class={{ enterClass() }}>
             <Chart type="bar" data={{ rows }} x="month" y="revenue" stagger={{ staggered() }}
+                   animate={{ chartAnimates() }}
                    valueFormat={{ money }} height={{ 300 }} yLabel="Revenue" />
           </div>
         }
         @case ('load') {
           <div class={{ enterClass() }}>
             <Chart data={{ readings }} x="at" series={{ swapSeries }} stagger={{ staggered() }}
-                   height={{ 300 }} grid="y" />
+                   animate={{ chartAnimates() }} height={{ 300 }} grid="y" />
           </div>
         }
         @case ('share') {
           <div class={{ enterClass() }}>
             <Chart type="donut" data={{ share }} x="product" y="revenue" stagger={{ staggered() }}
+                   animate={{ chartAnimates() }}
                    maxSlices={{ 6 }} valueFormat={{ money }} height={{ 300 }} />
           </div>
         }
         @case ('market') {
           <div class={{ enterClass() }}>
             <Chart type="candlestick" data={{ sessions }} x="day" ohlc={{ ohlc }} volume="v"
-                   stagger={{ staggered() }} valueFormat={{ price }} height={{ 300 }} />
+                   stagger={{ staggered() }} animate={{ chartAnimates() }}
+                   valueFormat={{ price }} height={{ 300 }} />
           </div>
         }
       }
@@ -486,5 +516,6 @@
     <!-- #endregion -->
   </Demo>
   <CodeTabs id="cr-swap" />
+  <CodeTabs id="cr-morph" />
   <CodeTabs id="cr-swap-picks" />
 </article>
