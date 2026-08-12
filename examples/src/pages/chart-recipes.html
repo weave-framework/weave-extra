@@ -171,6 +171,41 @@
   </Demo>
   <CodeTabs id="cr-auto" />
 
+  <h2>9b. On its side</h2>
+  <p>
+    <code>horizontal</code> trades the axes: categories down the left, values along the bottom. This
+    is the real answer to labels that do not fit — the one the section above is working around. Down
+    the side they simply fit, flat, at full length, in the order a list is read in, and every one is
+    drawn because there is no longer any reason to thin them.
+  </p>
+  <p>
+    It applies to <strong>bars over a category axis</strong> and is ignored otherwise. A line is read
+    left to right along its own axis and has nothing to turn on its side; a continuous axis has no
+    categories to list; and a second value axis would have to put its ticks along the top, where a
+    reader does not look. Those are cases where the flip has no meaning, not cases that were hard —
+    so it is ignored rather than half-applied.
+  </p>
+  <Demo>
+    <!-- #region cr-horizontal -->
+    <Chart type="bar" data={{ share }} x="product" y="revenue" horizontal
+           valueFormat={{ money }} height={{ 300 }} />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-horizontal" />
+
+  <p>
+    Stacking, grouping, the tooltip and the crosshair all follow. The bar's two numbers do not change
+    when the chart turns — where it sits on the category axis, and how far it reaches along the value
+    axis — only which of them is <em>x</em>.
+  </p>
+  <Demo>
+    <!-- #region cr-horizontal-stack -->
+    <Chart data={{ rows }} x="month" series={{ stacked }} horizontal
+           valueFormat={{ money }} height={{ 320 }} grid="y" />
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-horizontal-stack" />
+
   <h2>10. Where the axis starts</h2>
   <p>
     <code>zero</code> defaults to true for bars and false for lines, and that difference is not a

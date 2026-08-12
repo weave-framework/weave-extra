@@ -277,6 +277,8 @@ export interface ChartContext<TRow> {
 
   tooltip: () => TooltipView | null;
   crosshair: () => number | null;
+  /** The cartesian crosshair as a line, so it can follow the category axis whichever way it runs. */
+  crossLine: () => GridLine | null;
   onMove: (event: PointerEvent) => void;
   onLeave: () => void;
   onClick: () => void;
@@ -396,6 +398,28 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
   );
 
   const hasBars: Computed<boolean> = computed(() => visible().some((s) => s.type === 'bar'));
+
+  /**
+   * Whether the two axes trade places: categories down the side, values along the bottom.
+   *
+   * The reason to want it is labels. Product names, countries, survey answers — the things a bar
+   * chart is usually about — do not fit under a column, and the alternatives are all worse: turning
+   * them costs reading speed, thinning them hides categories, and truncating them lies. Down the
+   * left they simply fit, flat, at full length, in the order a list is read in.
+   *
+   * Every condition below is a case where the flip has no meaning rather than a case that was hard.
+   * Lines and areas are read left to right along their x axis and there is nothing to turn on its
+   * side; a continuous axis has no categories to list; and a second value axis would need somewhere
+   * to put its ticks, which on a flipped chart is the top — a place a reader does not look. In all
+   * of those `horizontal` is ignored rather than half-applied.
+   */
+  const flipped: Computed<boolean> = computed<boolean>(() => {
+    if (props.horizontal !== true || props.sparkline) return false;
+    if (isRadial() || isFinancial()) return false;
+    if (xKind() !== 'category') return false;
+    const list: ResolvedSeries<TRow>[] = visible();
+    return list.length > 0 && list.every((s) => s.type === 'bar' && s.axis !== 'right');
+  });
 
   /* ── stacking ──
    * Per x index, the running top of each stack group. Series without a `stack` are untouched, so a
@@ -523,12 +547,16 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     if (props.sparkline) {
       return { left: 1, top: 1, width: Math.max(1, w - 2), height: Math.max(1, h - 2), right: w - 1, bottom: h - 1 };
     }
+    // Flipped, the axes swap their labels as well as their directions — and this is where the flip
+    // pays for itself, because the left margin is measured from the category names and grows to fit
+    // them however long they are.
+    const turned: boolean = flipped();
     return layout({
       width: w,
       height: h,
-      leftLabels: yLabels(),
-      rightLabels: rightLabels(),
-      bottomLabels: xLabels(),
+      leftLabels: turned ? xLabels() : yLabels(),
+      rightLabels: turned ? [] : rightLabels(),
+      bottomLabels: turned ? yLabels() : xLabels(),
       xTitle: props.xLabel,
       yTitle: props.yLabel,
     });
@@ -548,7 +576,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
 
   const yScale: Computed<Scale<number>> = computed(() => {
     const box: PlotBox = plot();
-    return makeY('left', [box.bottom, box.top]);
+    return flipped() ? makeY('left', [box.left, box.right]) : makeY('left', [box.bottom, box.top]);
   });
 
   const yScaleRight: Computed<Scale<number>> = computed(() => {
@@ -564,7 +592,9 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
   const xBand: Computed<BandScale | null> = computed<BandScale | null>(() => {
     if (xKind() !== 'category') return null;
     const box: PlotBox = plot();
-    return bandScale(xValues().map((value) => String(value ?? '')), [box.left, box.right], {
+    // Down the side when flipped, in reading order — first category at the top, not at the bottom.
+    const span: [number, number] = flipped() ? [box.top, box.bottom] : [box.left, box.right];
+    return bandScale(xValues().map((value) => String(value ?? '')), span, {
       padding: hasBars() ? 0.2 : 0,
     });
   });
@@ -684,30 +714,41 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       const key: string = list[index].stack ?? `solo-${index}`;
       if (!groups.includes(key)) groups.push(key);
     }
-    const slot: number = band ? band.bandwidth : Math.max(4, box.width / Math.max(1, rows().length) * 0.8);
+    const turned: boolean = flipped();
+    const along: number = turned ? box.height : box.width;
+    const slot: number = band ? band.bandwidth : Math.max(4, (along / Math.max(1, rows().length)) * 0.8);
     const each: number = slot / Math.max(1, groups.length);
+    // The value axis's limits, whichever direction it now runs in.
+    const near: number = turned ? box.left : box.top;
+    const far: number = turned ? box.right : box.bottom;
     const out: BarMark[] = [];
     for (const index of barSeries) {
       const s: ResolvedSeries<TRow> = list[index];
       // Each bar series measures against its own axis, so a right-axis bar is drawn to the right
       // axis's zero and formatted with the right axis's own numbers.
       const scale: Scale<number> = scaleFor(index);
-      const zeroY: number = Math.min(box.bottom, Math.max(box.top, scale.to(0)));
+      const zeroAt: number = Math.min(far, Math.max(near, scale.to(0)));
       const format: (value: number) => string = formatFor(s.axis, scale);
       const group: number = groups.indexOf(s.stack ?? `solo-${index}`);
       const count: number = rows().length;
       rows().forEach((row, i) => {
         const top: number = topOf(index, i);
         if (!Number.isFinite(top)) return;
-        const bottom: number = s.stack ? scale.to(baseOf(index, i)) : zeroY;
+        const base: number = s.stack ? scale.to(baseOf(index, i)) : zeroAt;
         const target: number = scale.to(top);
         // By column, not by series: the stack rises together and the sweep runs along the axis.
         const t: number = motion.at(i, count);
-        const y: number = memory.at(`bar-${index}:${rowOffset() + i}`, target, t, bottom);
-        const left: number = (band ? band.start(String(xValues()[i] ?? '')) : xAt(i) - slot / 2) + group * each;
+        const grown: number = memory.at(`bar-${index}:${rowOffset() + i}`, target, t, base);
+        const seat: number = (band ? band.start(String(xValues()[i] ?? '')) : xAt(i) - slot / 2) + group * each;
+        const thickness: number = Math.max(1, each - 2);
+        const length: number = Math.abs(base - grown);
         out.push({
           key: `bar-${index}-${i}`,
-          d: barPath(left + 1, Math.min(y, bottom), Math.max(1, each - 2), Math.abs(bottom - y)),
+          // Same two numbers either way round: where the bar sits on the category axis, and how far
+          // it reaches along the value axis. Only which one is x decides the chart's direction.
+          d: turned
+            ? barPath(Math.min(grown, base), seat + 1, length, thickness)
+            : barPath(seat + 1, Math.min(grown, base), thickness, length),
           color: s.color,
           label: s.label,
           value: format(s.value(row)),
@@ -733,6 +774,17 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     const scale: Scale<number> = yScale();
     const box: PlotBox = plot();
     const format: (value: number) => string = props.valueFormat ?? scale.format;
+    // Flipped, the value axis is the one along the bottom, and it is asked for fewer ticks — a
+    // horizontal value axis has to fit its numbers side by side rather than stacked.
+    if (flipped()) {
+      return scale.ticks(Math.max(2, Math.floor(box.width / 80))).map((value) => ({
+        key: `y-${value}`,
+        x: scale.to(value),
+        y: box.bottom + 14,
+        label: format(value),
+        anchor: 'middle' as const,
+      }));
+    }
     return scale.ticks().map((value) => ({
       key: `y-${value}`,
       x: box.left - 8,
@@ -772,7 +824,9 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
    */
   const labelAngle: Computed<number> = computed<number>(() => {
     const setting = props.labelRotate;
-    if (setting === undefined) return 0;
+    // Flipped, the labels already lie flat down the side with a slot each. Turning them would undo
+    // the only thing the flip was for.
+    if (setting === undefined || flipped()) return 0;
     if (typeof setting === 'number') return setting;
     if (xKind() !== 'category') return 0;
     const write: (value: unknown) => string =
@@ -800,6 +854,20 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     const turn = (x: number, y: number): { anchor: 'middle' | 'end'; transform?: string } =>
       angle === 0 ? { anchor: 'middle' } : { anchor: 'end', transform: `rotate(${angle} ${x} ${y})` };
     const label: (value: unknown) => string = props.labelFormat ?? ((value: unknown) => String(value ?? ''));
+    /**
+     * Flipped, the categories run down the left, flat, one per bar — and every one of them is
+     * drawn. No thinning: a stacked list has a line of its own for each entry, and the whole reason
+     * to turn the chart on its side was to stop having to drop labels.
+     */
+    if (band && flipped()) {
+      return band.domain.map((value) => ({
+        key: `x-${value}`,
+        x: box.left - 8,
+        y: band.to(value),
+        label: props.labelFormat ? label(value) : value,
+        anchor: 'end' as const,
+      }));
+    }
     if (band) {
       // How many labels fit, from the width the widest one needs — not a fixed stride.
       const fit: number = Math.max(1, Math.floor(box.width / 64));
@@ -836,23 +904,30 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     const which = props.grid ?? 'y';
     if (which === false) return [];
     const box: PlotBox = plot();
+    const turned: boolean = flipped();
     const out: GridLine[] = [];
+    // `'y'` names the VALUE axis and `'x'` the category one, whichever way round they are drawn —
+    // a gridline crosses its own axis, so each one is perpendicular to the axis that produced it.
+    const across = (key: string, at: number, vertical: boolean): GridLine =>
+      vertical
+        ? { key, x1: at, y1: box.top, x2: at, y2: box.bottom }
+        : { key, x1: box.left, y1: at, x2: box.right, y2: at };
     if (which === true || which === 'y' || which === 'both') {
-      for (const tick of yTicks()) {
-        out.push({ key: `gy-${tick.key}`, x1: box.left, y1: tick.y, x2: box.right, y2: tick.y });
-      }
+      for (const tick of yTicks()) out.push(across(`gy-${tick.key}`, turned ? tick.x : tick.y, turned));
     }
     if (which === 'x' || which === 'both') {
-      for (const tick of xTicks()) {
-        out.push({ key: `gx-${tick.key}`, x1: tick.x, y1: box.top, x2: tick.x, y2: box.bottom });
-      }
+      for (const tick of xTicks()) out.push(across(`gx-${tick.key}`, turned ? tick.y : tick.x, !turned));
     }
     return out;
   });
 
   const axisLines: Computed<GridLine[]> = computed<GridLine[]>(() => {
     const box: PlotBox = plot();
-    return [{ key: 'x-axis', x1: box.left, y1: box.bottom, x2: box.right, y2: box.bottom }];
+    // The line under the categories. Flipped, that is the left edge — bars grow away from it, so it
+    // is the one edge a reader measures against.
+    return flipped()
+      ? [{ key: 'x-axis', x1: box.left, y1: box.top, x2: box.left, y2: box.bottom }]
+      : [{ key: 'x-axis', x1: box.left, y1: box.bottom, x2: box.right, y2: box.bottom }];
   });
 
   /* ── hover ── */
@@ -906,6 +981,21 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
   const crosshair: Computed<number | null> = computed<number | null>(() => {
     const index: number | null = hoverIndex();
     return index === null ? null : xAt(index);
+  });
+
+  /**
+   * The crosshair as a line rather than as a coordinate.
+   *
+   * It follows the CATEGORY axis, so flipping the chart turns it from vertical to horizontal. The
+   * financial branch keeps the bare number — it never flips, and a second shape would be two things
+   * to keep in step for no gain.
+   */
+  const crossLine: Computed<GridLine | null> = computed<GridLine | null>(() => {
+    const at: number | null = crosshair();
+    if (at === null) return null;
+    return flipped()
+      ? { key: 'cross', x1: 0, y1: at, x2: width(), y2: at }
+      : { key: 'cross', x1: at, y1: 0, x2: at, y2: height() };
   });
 
   /* ────────────────────────── radial: pie and donut ──────────────────────────
@@ -1438,6 +1528,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       }
       return crosshair();
     },
+    crossLine: (): GridLine | null => (props.sparkline || isRadial() || isFinancial() ? null : crossLine()),
     onMove: (event: PointerEvent): void => {
       const element: HTMLElement | null = host();
       if (!element) return;
@@ -1463,7 +1554,8 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
         hoverIndex.set(best);
         return;
       }
-      hoverIndex.set(nearest(x));
+      // Along the category axis, which is the vertical one once the chart is flipped.
+      hoverIndex.set(nearest(flipped() ? y : x));
     },
     onLeave: (): void => {
       hoverIndex.set(null);

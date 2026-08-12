@@ -197,7 +197,31 @@ Bars encode value by **length**, so a truncated axis makes a 3% difference look 
 single most common way a chart misleads. A line encodes by position, where a zoomed axis is
 legitimate and often the only way to see anything.
 
-### 4.4 Turning the labels
+### 4.4 On its side
+
+```ts
+horizontal?: boolean
+```
+
+Categories down the left, values along the bottom. This is the real answer to labels that do not fit
+under a column, and it beats every alternative: turning them costs reading speed, thinning them
+hides categories, truncating them lies. Down the side they fit flat, at full length, in the order a
+list is read in — and **every** category is labelled, because there is no longer any reason to thin.
+
+The left margin is measured from the category names, so it grows to whatever they need.
+
+Applies to **bars over a category axis**, and is ignored otherwise: a line is read left to right
+along its own axis and has nothing to turn on its side, a continuous axis has no categories to list,
+and a second value axis would have to put its ticks along the top, where a reader does not look.
+Those are cases where the flip has no meaning rather than cases that were hard — so it is ignored
+rather than half-applied.
+
+Stacking, grouping, the grid, the tooltip and the crosshair all follow. A bar's two numbers do not
+change when the chart turns — where it sits on the category axis, and how far it reaches along the
+value axis — only which of them is *x*. `grid: 'y'` still means the value axis, so its gridlines
+become vertical.
+
+### 4.5 Turning the labels
 
 ```ts
 labelRotate?: number | 'auto'
@@ -216,7 +240,7 @@ two neighbours. So `'auto'` is a function of the width, and the same chart can t
 sidebar and leave them flat across a page. It applies to a category axis only — a time or numeric
 axis chooses how many ticks to place, so it can thin instead. An explicit angle always wins.
 
-### 4.5 Formatting
+### 4.6 Formatting
 
 ```ts
 valueFormat?: (value: number) => string   // the value axis and the tooltip
@@ -227,7 +251,7 @@ labelFormat?: (value: unknown) => string  // the category / time axis
 Without one, the axis writes compact numbers (`1.2k`, `3.4M`) — an axis label is read at a glance in
 a narrow gutter, and `1200000` there costs width and reads slower. Exactness belongs in the tooltip.
 
-### 4.6 Log scale
+### 4.7 Log scale
 
 ```ts
 yType: 'log'
@@ -511,7 +535,7 @@ The arrow carries the direction as a second channel, so the tile survives greysc
   series                    // SeriesConfig[]
   type                      // 'line' | 'area' | 'bar' | 'pie' | 'donut' | 'candlestick' | 'ohlc'
 
-  xType yType yMin yMax zero
+  xType yType yMin yMax zero horizontal
   valueFormat rightFormat labelFormat
 
   height grid legend tooltip tooltipFormat
@@ -532,8 +556,6 @@ The arrow carries the direction as a second channel, so the tile survives greysc
 Defaults: `type` line · `height` 260 (40 for a sparkline) · `grid` `'y'` · `tooltip` `'shared'` ·
 `animate` true · `duration` 600 · `stagger` false · `zero` true for bars · `zoom` true · `padAngle` 1 ·
 `volumeHeight` 0.22 · `brushHeight` 48.
-
-`horizontal` is declared and **not implemented** — see [§14.6](#146-what-is-not-there).
 
 ---
 
@@ -659,9 +681,11 @@ The rule behind all three: every failure mode must land on *no animation*, never
 
 ### 14.6 What is not there
 
-`horizontal` is declared in `ChartProps` and does nothing yet. Radar, gauge as a type, funnel, 3D and
-maps are deliberately absent: they look impressive in a catalogue and are almost never the right
-chart.
+Radar, gauge as a type, funnel, 3D and maps are deliberately absent: they look impressive in a
+catalogue and are almost never the right chart. A gauge is reachable anyway — a donut with
+`startAngle` and `endAngle` set is one, see [§10](#10-pie-and-donut).
+
+Nothing in `ChartProps` is declared and unimplemented. If an option is in the type, it works.
 
 ### 14.7 The type check that counts
 
