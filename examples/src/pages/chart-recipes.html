@@ -409,4 +409,66 @@
     <!-- #endregion -->
   </Demo>
   <CodeTabs id="cr-metric" />
+
+  <h2>22. Switching between four unrelated charts</h2>
+  <p>
+    Four charts with <strong>nothing in common</strong>: different rows, different counts, different
+    units, different marks, and one of them has no axes at all. Pick any of them, in any order.
+  </p>
+  <p>
+    The tempting answer is to <em>morph</em> — keep one chart and hand it the next dataset, so every
+    mark travels to its new place. The engine would do it without being asked; that is exactly what
+    the memory in §13 is for. It would also be a <strong>lie</strong>. Month 3 of revenue is not
+    session 3 of a market, and a bar sliding into a candle asserts a relationship between two numbers
+    that have none. Morphing is right when the same series changes and wrong when the subject does.
+  </p>
+  <p>
+    So the outgoing chart leaves whole and the incoming one arrives whole — 160ms out, then the swap.
+    What makes that beautiful rather than abrupt is that the new chart is genuinely
+    <strong>mounting</strong>, and a mounting chart already animates itself in: bars grow from the
+    baseline, lines draw, slices sweep. The transition is not written; it is the entrance every chart
+    already has, uncovered by getting out of its way.
+  </p>
+  <p>
+    The stage is a <strong>fixed box</strong>. Four charts of four natural heights would make the page
+    jump under the reader's eyes on every pick, and a picker whose content moves is one you have to
+    re-find after each use.
+  </p>
+  <div class="demo-controls">
+    <span class="demo-note">{{ chosenNote() }}</span>
+  </div>
+  <Demo>
+    <!-- #region cr-swap -->
+    <div class="chart-picker">
+      @for (pick of picks; track pick.id) {
+        <Button variant={{ pickVariant(pick.id) }} on:click={{ () => choose(pick.id) }}>
+          {{ pick.title }}
+        </Button>
+      }
+    </div>
+
+    <div class={{ stageClass() }}>
+      @switch (chosen()) {
+        @case ('revenue') {
+          <Chart type="bar" data={{ rows }} x="month" y="revenue"
+                 valueFormat={{ money }} height={{ 300 }} yLabel="Revenue" />
+        }
+        @case ('load') {
+          <Chart data={{ readings }} x="at" series={{ swapSeries }}
+                 height={{ 300 }} grid="y" />
+        }
+        @case ('share') {
+          <Chart type="donut" data={{ share }} x="product" y="revenue"
+                 maxSlices={{ 6 }} valueFormat={{ money }} height={{ 300 }} />
+        }
+        @case ('market') {
+          <Chart type="candlestick" data={{ sessions }} x="day" ohlc={{ ohlc }} volume="v"
+                 valueFormat={{ price }} height={{ 300 }} />
+        }
+      }
+    </div>
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="cr-swap" />
+  <CodeTabs id="cr-swap-picks" />
 </article>

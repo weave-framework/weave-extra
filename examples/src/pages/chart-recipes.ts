@@ -11,9 +11,9 @@
  * Every block is lifted from this file by `tools/gen-snippets.mjs`, so what is shown is what runs.
  */
 
-import { computed, signal, type Computed, type Signal } from '@weave-framework/runtime';
+import { computed, onCleanup, signal, type Computed, type Signal } from '@weave-framework/runtime';
 import Button from '@weave-framework/ui/button';
-import Chart, { type ChartPoint, type SeriesConfig } from '@weave-framework/extra/components/chart';
+import Chart, { prefersReducedMotion, type ChartPoint, type SeriesConfig } from '@weave-framework/extra/components/chart';
 import Metric from '@weave-framework/extra/components/metric';
 import Demo from '../lib/demo/demo.js';
 import CodeTabs from '../lib/code-tabs/code-tabs.js';
@@ -45,11 +45,14 @@ const ROWS: Row[] = MONTHS.map((month, i) => {
 export interface Reading extends Record<string, unknown> {
   at: number;
   load: number;
+  queue: number;
 }
 
 const READINGS: Reading[] = Array.from({ length: 240 }, (_, i) => ({
   at: Date.UTC(2026, 6, 1) + i * 900_000,
-  load: Math.round(48 + Math.sin(i / 11) * 26 + Math.sin(i / 2.3) * 6),
+  // A deliberate hole: a line drawn across missing data is the quiet lie charts tell most often.
+  load: i >= 96 && i <= 107 ? NaN : Math.round(48 + Math.sin(i / 11) * 26 + Math.sin(i / 2.3) * 6),
+  queue: Math.round(14 + Math.cos(i / 9) * 9),
 }));
 // #endregion
 
@@ -123,6 +126,30 @@ function trend(from: number, drift: number): Point[] {
 
 export type GridMode = 'y' | 'x' | 'both' | false;
 
+// #region cr-swap-picks
+/**
+ * Four charts with nothing in common — the point of the exercise.
+ *
+ * Different rows, different counts, different units, different marks, and one of them has no axes
+ * at all. There is no correspondence between a month of revenue and a trading session, so there is
+ * nothing to interpolate BETWEEN them.
+ */
+export type PickId = 'revenue' | 'load' | 'share' | 'market';
+
+export interface PickEntry {
+  id: PickId;
+  title: string;
+  note: string;
+}
+
+const PICKS: PickEntry[] = [
+  { id: 'revenue', title: 'Revenue', note: '12 months · bars · € · category axis' },
+  { id: 'load', title: 'Load', note: '240 readings · area and step · % · time axis, with a gap' },
+  { id: 'share', title: 'Share', note: '8 products · donut · € · no axes at all' },
+  { id: 'market', title: 'Market', note: '90 sessions · candles and volume · price · ordinal axis' },
+];
+// #endregion
+
 export interface RecipesContext {
   Chart: typeof Chart;
   Metric: typeof Metric;
@@ -174,6 +201,14 @@ export interface RecipesContext {
   animated: () => boolean;
   animatedText: () => string;
   toggleAnimation: () => void;
+
+  picks: PickEntry[];
+  chosen: () => PickId;
+  choose: (id: PickId) => void;
+  pickVariant: (id: PickId) => string;
+  stageClass: () => string;
+  chosenNote: () => string;
+  swapSeries: SeriesConfig<Reading>[];
 }
 
 export function setup(): RecipesContext {
@@ -183,6 +218,22 @@ export function setup(): RecipesContext {
   const rotate: Signal<number | 'auto'> = signal<number | 'auto'>(-45);
   const range: Signal<readonly [number, number]> = signal<readonly [number, number]>([0, 59]);
   const picked: Signal<string> = signal<string>('nothing yet');
+
+  const chosen: Signal<PickId> = signal<PickId>('revenue');
+  /**
+   * What the stage is fading OUT towards, or null when it is settled.
+   *
+   * One source of truth rather than a separate `leaving` flag: mid-fade, the answer to "what is
+   * selected" is the pending pick, not the one still on screen, and two variables holding half of
+   * that each is how a picker ends up highlighting one chart while showing another.
+   */
+  const pending: Signal<PickId | null> = signal<PickId | null>(null);
+  let timer: number | undefined;
+  // A swap in flight when the page goes away would set a signal on a component that no longer
+  // exists — cheap to prevent, and the kind of thing that only shows up as a console error later.
+  onCleanup(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
 
   const GRIDS: GridMode[] = ['y', 'x', 'both', false];
   const ROTATIONS: (number | 'auto')[] = [-45, -90, 30, 'auto', 0];
@@ -320,6 +371,69 @@ export function setup(): RecipesContext {
     animatedText: (): string => String(animated()),
     toggleAnimation: (): void => {
       animated.set(!animated());
+    },
+
+    picks: PICKS,
+    swapSeries: [
+      { y: 'load', label: 'Load %', type: 'area', curve: 'smooth' },
+      { y: 'queue', label: 'Queue', type: 'line', curve: 'step' },
+    ],
+    // #region cr-swap
+    chosen: (): PickId => chosen(),
+    /**
+     * Fade the old one out, swap, let the new one play its own entrance.
+     *
+     * The tempting thing is to morph — keep one chart and feed it the next dataset, so the marks
+     * travel. The engine would do it: the memory interpolates every mark from where it was. It
+     * would also be a lie. Month 3 of revenue is not session 3 of a market, and a bar sliding into
+     * a candle asserts a relationship between two numbers that have none. Morphing is right when
+     * the SAME series changes and wrong when the subject does.
+     *
+     * So the outgoing chart leaves as a whole and the incoming one arrives as a whole. What makes
+     * that beautiful rather than abrupt is that the new chart is genuinely MOUNTING, and a mounting
+     * chart already animates itself in — bars grow from the baseline, lines draw, slices sweep. The
+     * transition is not written here; it is the entrance every chart already has, uncovered by
+     * getting out of its way.
+     */
+    choose: (id: PickId): void => {
+      // Against what is COMING, not what is showing. Pick a chart and then change your mind inside
+      // the 160ms, and comparing against the visible one lets the first pick land anyway — the
+      // stage ends up on a chart whose button you un-clicked.
+      if (id === (pending() ?? chosen())) return;
+      if (timer !== undefined) clearTimeout(timer);
+      if (id === chosen()) {
+        // Back to what is already on the stage: cancel the fade rather than swap to it.
+        timer = undefined;
+        pending.set(null);
+        return;
+      }
+      // A crossfade someone has asked not to see is not a courtesy. Swap outright.
+      if (prefersReducedMotion()) {
+        chosen.set(id);
+        return;
+      }
+      pending.set(id);
+      /**
+       * A timer, deliberately, and not `transitionend`.
+       *
+       * A transition in a hidden tab is created and never advances — no frames, no end event — so
+       * sequencing the swap on it means a picker that works until someone switches tabs mid-click
+       * and comes back to a chart frozen half-faded, waiting for an event that will never arrive.
+       * The same trap the animation clock needed a watchdog for.
+       */
+      timer = window.setTimeout(() => {
+        chosen.set(id);
+        pending.set(null);
+        timer = undefined;
+      }, 160);
+    },
+    // #endregion
+    // The button follows the pending pick, so the picker answers the click rather than the timer.
+    pickVariant: (id: PickId): string => (id === (pending() ?? chosen()) ? 'primary' : 'ghost'),
+    stageClass: (): string => (pending() === null ? 'chart-stage' : 'chart-stage is-leaving'),
+    chosenNote: (): string => {
+      const id: PickId = pending() ?? chosen();
+      return PICKS.find((pick) => pick.id === id)?.note ?? '';
     },
   };
 }

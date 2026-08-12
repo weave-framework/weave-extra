@@ -525,6 +525,45 @@ $topbar-h: var(--weave-toolbar-height, 52px);
  * enough room. `labelRotate="auto"` measures, so showing it working means giving it a width where
  * the labels genuinely collide — at full page width they do not, and the demo would show nothing.
  */
+/* ── Chart recipes: the four-way picker and the stage it swaps in ── */
+
+.chart-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  margin-block-end: var(--space-3, 12px);
+}
+
+/**
+ * A fixed box, not a box that fits its contents.
+ *
+ * The four charts have four natural heights, so letting the stage size itself would make the page
+ * jump under the reader on every pick — and a picker whose content moves is one you have to re-find
+ * after each use. Reserving the tallest costs some white space under the shortest, which nobody
+ * notices, unlike the jump.
+ */
+.chart-stage {
+  display: grid;
+  align-content: start;
+  block-size: 348px;
+  inline-size: 100%;
+  overflow: hidden;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+// The outgoing half of the swap. The incoming half is not here: a mounting chart animates itself
+// in, and a CSS fade layered on top of that would fight it.
+.chart-stage.is-leaving {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chart-stage {
+    transition: none;
+  }
+}
+
 .chart-narrow {
   // An explicit size, not a max: the demo stage is a flex row, and a block whose only content is a
   // chart sized to its parent has no intrinsic width to be capped — it collapses to nothing.

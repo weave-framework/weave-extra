@@ -508,7 +508,7 @@ Defaults: `type` line · `height` 260 (40 for a sparkline) · `grid` `'y'` · `t
 `animate` true · `duration` 600 · `zero` true for bars · `zoom` true · `padAngle` 1 ·
 `volumeHeight` 0.22 · `brushHeight` 48.
 
-`horizontal` is declared and **not implemented** — see [§14.5](#145-what-is-not-there).
+`horizontal` is declared and **not implemented** — see [§14.6](#146-what-is-not-there).
 
 ---
 
@@ -563,13 +563,29 @@ charts tell most often: three months of missing revenue drawn as a smooth climb.
 Width always follows the container through a `ResizeObserver`; only `height` is a prop. A chart in a
 container with no width renders nothing until it has one.
 
-### 14.5 What is not there
+### 14.5 Do not morph between unrelated charts
+
+Hand a mounted chart a new dataset and every mark travels to its new place — that is what the
+animation is for, and it is right when the **same series** changes: new month, refreshed query,
+a filter applied.
+
+It is wrong when the **subject** changes. Month 3 of revenue is not session 3 of a market, and a bar
+sliding into a candle asserts a relationship between two numbers that have none. For a picker
+between unrelated charts, swap the component instead — fade the old one out, mount the new one, and
+let it play the entrance it already has. The engine gives you the good transition by being allowed
+to mount, not by being made to interpolate.
+
+Sequence that swap on a **timer**, not on `transitionend`. A CSS transition in a hidden tab is
+created and never advances, so there is no end event: a picker built on one works until someone
+switches tabs mid-click and comes back to a stage frozen half-faded.
+
+### 14.6 What is not there
 
 `horizontal` is declared in `ChartProps` and does nothing yet. Radar, gauge as a type, funnel, 3D and
 maps are deliberately absent: they look impressive in a catalogue and are almost never the right
 chart.
 
-### 14.6 The type check that counts
+### 14.7 The type check that counts
 
 `weave check` does not type-check this package's `src`. Use `tsc`:
 
