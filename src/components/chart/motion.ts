@@ -28,11 +28,27 @@ export interface ClockOptions {
   easing?: (t: number) => number;
   /** Force animation off. `prefers-reduced-motion` does this on its own. */
   disabled?: boolean;
+  /**
+   * How much of the run is spent spreading the marks' starts, as a fraction. 0 is simultaneous.
+   *
+   * A SPREAD rather than a per-mark delay, which is the mistake every library that offers this
+   * makes: `delay: 30` reads well against twelve bars and turns three hundred candles into a
+   * nine-second wait. Expressed as a share of the run, the choreography costs the same at any
+   * length — with 300 marks the gaps are simply finer.
+   */
+  stagger?: number;
 }
 
 export interface Clock {
   /** Eased progress, 0 → 1. Reactive: read it inside a computed and marks re-derive per frame. */
   progress: () => number;
+  /**
+   * Progress of mark `index` of `count`, for a run that is choreographed rather than simultaneous.
+   *
+   * Identical to {@link progress} when there is no stagger, so a mark can always call this and let
+   * the clock decide whether the run has a shape.
+   */
+  at: (index: number, count: number) => number;
   /** Start again from 0. Called when the data changes. */
   restart: () => void;
   /** Jump to the end without animating — what a data change during a hidden tab should do. */
@@ -57,6 +73,24 @@ export function clock(options: ClockOptions = {}): Clock {
   const easing: (t: number) => number = options.easing ?? easings.cubicOut;
   const off: boolean = options.disabled === true || prefersReducedMotion() || duration <= 0;
 
+  /**
+   * Capped well short of 1. At a spread of 1 the last mark starts as the first one finishes, which
+   * is not choreography — it is a queue, and the reader has stopped watching before the end.
+   */
+  const spread: number = Math.max(0, Math.min(0.8, options.stagger ?? 0));
+  /**
+   * The run lengthens by the spread rather than being divided by it.
+   *
+   * Dividing is the obvious reading and it is wrong: fitting the same 600ms inside a staggered run
+   * means each mark moves for less than 600ms, so choreographing a chart makes every individual
+   * mark snappier — the opposite of what was asked for. Here each mark still moves for `duration`,
+   * and the run is longer because the starts are spread.
+   */
+  const total: number = duration * (1 + spread);
+  /** Each mark's own motion, and the window the starts are spread over, as fractions of `total`. */
+  const markShare: number = 1 / (1 + spread);
+  const spreadShare: number = spread / (1 + spread);
+
   const raw: Signal<number> = signal<number>(off ? 1 : 0);
   let frame: number = 0;
   let watchdog: ReturnType<typeof setTimeout> | 0 = 0;
@@ -70,7 +104,7 @@ export function clock(options: ClockOptions = {}): Clock {
   };
 
   const step = (now: number): void => {
-    const t: number = Math.min(1, (now - startedAt) / duration);
+    const t: number = Math.min(1, (now - startedAt) / total);
     raw.set(t);
     if (t < 1) frame = requestAnimationFrame(step);
     else {
@@ -107,7 +141,7 @@ export function clock(options: ClockOptions = {}): Clock {
     // a frame late, and measuring from it makes short animations lose their opening.
     startedAt = performance.now();
     frame = requestAnimationFrame(step);
-    watchdog = setTimeout(finish, duration + 200);
+    watchdog = setTimeout(finish, total + 200);
   };
 
   onCleanup(stop);
@@ -116,6 +150,15 @@ export function clock(options: ClockOptions = {}): Clock {
 
   return {
     progress: (): number => easing(raw()),
+    at: (index: number, count: number): number => {
+      const t: number = raw();
+      if (off || spread <= 0 || count <= 1) return easing(t);
+      // Clamped to the last slot, so a mark reported past the end of the run cannot start late and
+      // be left mid-motion when the clock stops.
+      const slot: number = Math.min(Math.max(index, 0), count - 1) / (count - 1);
+      const local: number = (t - spreadShare * slot) / markShare;
+      return easing(Math.max(0, Math.min(1, local)));
+    },
     restart,
     finish: (): void => {
       stop();

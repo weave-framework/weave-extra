@@ -592,6 +592,9 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
   const motion: Clock = clock({
     duration: props.duration,
     disabled: props.animate === false,
+    // `true` is 0.55: enough that the sweep is unmistakable, short of the point where the last mark
+    // arrives after the reader has finished looking.
+    stagger: props.stagger === true ? 0.55 : props.stagger === false ? 0 : props.stagger,
   });
   const memory: Memory = new Memory();
 
@@ -616,9 +619,11 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
   const pointsFor = (seriesIndex: number): Pt[] => {
     const scale: Scale<number> = scaleFor(seriesIndex);
     const box: PlotBox = plot();
-    const t: number = motion.progress();
+    const all: readonly TRow[] = rows();
     const zeroY: number = Math.min(box.bottom, Math.max(box.top, scale.to(0)));
-    return rows().map((_, i) => {
+    return all.map((_, i) => {
+      // Per point, so a staggered line unfurls from its left edge rather than rising as one piece.
+      const t: number = motion.at(i, all.length);
       const top: number = topOf(seriesIndex, i);
       const defined: boolean = Number.isFinite(top);
       const target: number = defined ? scale.to(top) : zeroY;
@@ -667,7 +672,6 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
   const bars: Computed<BarMark[]> = computed<BarMark[]>(() => {
     const band: BandScale | null = xBand();
     const box: PlotBox = plot();
-    const t: number = motion.progress();
     const list: ResolvedSeries<TRow>[] = visible();
     const barSeries: number[] = list.map((s, i) => (s.type === 'bar' ? i : -1)).filter((i) => i >= 0);
     if (barSeries.length === 0) return [];
@@ -689,11 +693,14 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       const zeroY: number = Math.min(box.bottom, Math.max(box.top, scale.to(0)));
       const format: (value: number) => string = formatFor(s.axis, scale);
       const group: number = groups.indexOf(s.stack ?? `solo-${index}`);
+      const count: number = rows().length;
       rows().forEach((row, i) => {
         const top: number = topOf(index, i);
         if (!Number.isFinite(top)) return;
         const bottom: number = s.stack ? scale.to(baseOf(index, i)) : zeroY;
         const target: number = scale.to(top);
+        // By column, not by series: the stack rises together and the sweep runs along the axis.
+        const t: number = motion.at(i, count);
         const y: number = memory.at(`bar-${index}:${rowOffset() + i}`, target, t, bottom);
         const left: number = (band ? band.start(String(xValues()[i] ?? '')) : xAt(i) - slot / 2) + group * each;
         out.push({
@@ -940,17 +947,26 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     const outer: number = fitted.radius;
     const innerFraction: number = props.innerRadius ?? (props.type === 'donut' ? 0.62 : 0);
     const inner: number = outer * Math.min(0.95, Math.max(0, innerFraction));
-    const t: number = motion.progress();
     const list: Slice[] = slices();
     const format: (value: number) => string = props.valueFormat ?? ((value: number) => String(value));
     const hovered: number | null = hoverIndex();
+
+    /**
+     * One edge, animated once, and read by the two slices that share it.
+     *
+     * A slice's `from` IS its predecessor's `to`, so deriving them separately lets the same angle
+     * hold two values mid-run and opens a gap between neighbours. Harmless while every slice moved
+     * on one clock; fatal the moment they move on different ones, which is what a stagger is.
+     */
+    const edge = (k: number): number =>
+      k <= 0 ? start : memory.at(`arc-to:${list[k - 1].label}`, list[k - 1].to, motion.at(k - 1, list.length), start);
 
     const arcs: ArcMark[] = list.map((slice, i) => {
       // Both edges travel, so the whole ring unrolls from the start angle on mount and every edge
       // slides to its new place on an update. Interpolating only the end would drag the slices
       // across each other.
-      const from: number = memory.at(`arc-from:${slice.label}`, slice.from, t, start);
-      const to: number = memory.at(`arc-to:${slice.label}`, slice.to, t, start);
+      const from: number = edge(i);
+      const to: number = edge(i + 1);
       // The hovered slice steps outward. Cheaper and steadier than scaling it, which moves its
       // neighbours' apparent size too.
       const lift: number = hovered === i ? 6 : 0;
@@ -1072,6 +1088,14 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     const bodyWidth: number = Math.max(1, band.bandwidth);
     const tick: number = Math.max(1, bodyWidth / 2);
 
+    /**
+     * A session opens at a price and the rest of it happens afterwards, so a candle grows OUT of
+     * its own open — wick and body both — rather than rising from the floor. A candle sliding up
+     * from the axis would be drawing a price it never traded at, for as long as the animation runs.
+     *
+     * Keyed by absolute index like every other mark, which is what keeps a pan from re-growing the
+     * whole chart: a candle already seen travels from where it was drawn.
+     */
     const candles: CandleMark[] = shown.map(({ row, index }, i) => {
       const bar: Bar = toBar(row);
       // The bar before this one in the WHOLE series, not in the window — the first visible candle
@@ -1079,17 +1103,22 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       const previous: Bar | undefined = index > 0 ? toBar(allRows()[index - 1]) : undefined;
       const rising: boolean = isUp(bar, previous?.close);
       const cx: number = band.to(String(index));
-      const body = candleBody(cx - bodyWidth / 2, bodyWidth, price.to(bar.open), price.to(bar.close));
+      const t: number = motion.at(i, shown.length);
+      const openY: number = price.to(bar.open);
+      const closeY: number = memory.at(`c-close:${index}`, price.to(bar.close), t, openY);
+      const highY: number = memory.at(`c-high:${index}`, price.to(bar.high), t, openY);
+      const lowY: number = memory.at(`c-low:${index}`, price.to(bar.low), t, openY);
+      const body = candleBody(cx - bodyWidth / 2, bodyWidth, openY, closeY);
       return {
         key: `candle-${index}`,
         wx: cx,
-        wy1: price.to(bar.high),
-        wy2: price.to(bar.low),
+        wy1: highY,
+        wy2: lowY,
         x: body.x,
         y: body.y,
         width: body.width,
         height: body.height,
-        d: ohlcPath(cx, tick, price.to(bar.high), price.to(bar.low), price.to(bar.open), price.to(bar.close)),
+        d: ohlcPath(cx, tick, highY, lowY, openY, closeY),
         color: rising ? up : down,
         up: rising,
         index,
@@ -1104,7 +1133,9 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       shown.forEach(({ index }, i) => {
         const value: number = values[i];
         if (!Number.isFinite(value)) return;
-        const y: number = scale.to(value);
+        // Volume is a count, so it grows from zero — the one place on a financial chart where a bar
+        // rising from the floor is the true picture.
+        const y: number = memory.at(`vol:${index}`, scale.to(value), motion.at(i, shown.length), box.bottom);
         volumes.push({
           key: `vol-${index}`,
           x: band.to(String(index)) - bodyWidth / 2,

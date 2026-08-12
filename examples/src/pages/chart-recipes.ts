@@ -207,8 +207,12 @@ export interface RecipesContext {
   choose: (id: PickId) => void;
   pickVariant: (id: PickId) => string;
   stageClass: () => string;
+  enterClass: () => string;
   chosenNote: () => string;
   swapSeries: SeriesConfig<Reading>[];
+  staggered: () => boolean;
+  staggerText: () => string;
+  toggleStagger: () => void;
 }
 
 export function setup(): RecipesContext {
@@ -228,6 +232,16 @@ export function setup(): RecipesContext {
    * that each is how a picker ends up highlighting one chart while showing another.
    */
   const pending: Signal<PickId | null> = signal<PickId | null>(null);
+  /**
+   * Which way the stage is travelling, taken from the picker's own order.
+   *
+   * Motion that means something: pick a chart to the right of the current one and the old one
+   * leaves left while the new one arrives from the right, so the four charts read as a strip you
+   * are moving along rather than four slides fading in the same spot. Direction is the cheapest
+   * way to tell a reader where they just went.
+   */
+  const forward: Signal<boolean> = signal<boolean>(true);
+  const staggered: Signal<boolean> = signal<boolean>(true);
   let timer: number | undefined;
   // A swap in flight when the page goes away would set a signal on a component that no longer
   // exists — cheap to prevent, and the kind of thing that only shows up as a console error later.
@@ -407,6 +421,7 @@ export function setup(): RecipesContext {
         pending.set(null);
         return;
       }
+      forward.set(PICKS.findIndex((p) => p.id === id) > PICKS.findIndex((p) => p.id === chosen()));
       // A crossfade someone has asked not to see is not a courtesy. Swap outright.
       if (prefersReducedMotion()) {
         chosen.set(id);
@@ -430,7 +445,22 @@ export function setup(): RecipesContext {
     // #endregion
     // The button follows the pending pick, so the picker answers the click rather than the timer.
     pickVariant: (id: PickId): string => (id === (pending() ?? chosen()) ? 'primary' : 'ghost'),
-    stageClass: (): string => (pending() === null ? 'chart-stage' : 'chart-stage is-leaving'),
+    stageClass: (): string =>
+      pending() === null ? 'chart-stage' : `chart-stage is-leaving ${forward() ? 'to-left' : 'to-right'}`,
+    /**
+     * The entrance rides a FRESH node, not a class toggled on the stage.
+     *
+     * A CSS animation replays only when it starts on a newly rendered element; re-adding a class
+     * that is already there does nothing, which is the classic way an entrance animation works once
+     * and never again. The `@switch` mints a new wrapper on every pick, so the animation is
+     * guaranteed a first frame.
+     */
+    enterClass: (): string => `chart-enter ${forward() ? 'from-right' : 'from-left'}`,
+    staggered: (): boolean => staggered(),
+    staggerText: (): string => (staggered() ? 'on' : 'off'),
+    toggleStagger: (): void => {
+      staggered.set(!staggered());
+    },
     chosenNote: (): string => {
       const id: PickId = pending() ?? chosen();
       return PICKS.find((pick) => pick.id === id)?.note ?? '';

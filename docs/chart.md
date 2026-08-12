@@ -276,8 +276,9 @@ some markets read the pair the other way round — a theme override, not a fork 
 ## 6. Animation
 
 ```ts
-animate?: boolean   // default true
-duration?: number   // default 600
+animate?: boolean            // default true
+duration?: number            // default 600
+stagger?: boolean | number   // default false; true is 0.55
 ```
 
 **One clock per chart, not one per mark.** A chart with 300 bars has 300 numbers that want to move;
@@ -295,8 +296,32 @@ not throttled, *not at all* — so a chart that grows its marks from zero would 
 until the tab was shown. The same applies in a collapsed panel and an off-screen route. An animation
 nobody saw is not worth a chart that was blank.
 
-Financial charts do not animate their marks at all: a price chart is read by shape, and marks growing
-out of the axis change the shape while it is being read.
+**A candle grows out of its own open**, not up from the axis. A session opens at a price and the rest
+of it happens afterwards, so the wick and the body extend from the open in both directions. A candle
+rising from the floor would be drawing prices that never traded for as long as the animation ran.
+Volume is a count, so volume bars *do* grow from zero — the one place on a financial chart where that
+is the true picture.
+
+### 6.1 Choreography
+
+```ts
+stagger?: boolean | number   // 0 to 0.8
+```
+
+Marks arrive one after another instead of together, in reading order — left to right along an axis,
+clockwise around a pie. A staggered line unfurls from its left edge; a staggered pie unrolls.
+
+It is a **share of the run, not a delay per mark**. `delay: 30` reads well against twelve bars and
+turns three hundred candles into a nine-second wait, which is how this feature usually ships. Here
+the choreography costs the same at any length — with 300 marks the gaps are simply finer.
+
+The run *lengthens* by the spread rather than being divided by it. Fitting the same 600ms inside a
+staggered run would make each mark move for less than 600ms, so choreographing a chart would make
+every individual mark snappier — the opposite of what was asked for. At `stagger: 0.55` and the
+default duration, each mark still moves for 600ms and the whole run takes 930.
+
+Capped at 0.8. At 1 the last mark starts as the first one finishes, which is not choreography but a
+queue, and the reader has stopped watching before the end.
 
 ---
 
@@ -491,7 +516,7 @@ The arrow carries the direction as a second channel, so the tile survives greysc
 
   height grid legend tooltip tooltipFormat
   brush brushHeight labelRotate
-  animate duration
+  animate duration stagger
   ariaLabel title xLabel yLabel emptyText
   sparkline
   onPointClick
@@ -505,7 +530,7 @@ The arrow carries the direction as a second channel, so the tile survives greysc
 ```
 
 Defaults: `type` line · `height` 260 (40 for a sparkline) · `grid` `'y'` · `tooltip` `'shared'` ·
-`animate` true · `duration` 600 · `zero` true for bars · `zoom` true · `padAngle` 1 ·
+`animate` true · `duration` 600 · `stagger` false · `zero` true for bars · `zoom` true · `padAngle` 1 ·
 `volumeHeight` 0.22 · `brushHeight` 48.
 
 `horizontal` is declared and **not implemented** — see [§14.6](#146-what-is-not-there).

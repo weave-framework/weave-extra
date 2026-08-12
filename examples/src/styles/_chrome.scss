@@ -551,16 +551,70 @@ $topbar-h: var(--weave-toolbar-height, 52px);
   transition: opacity 160ms ease, transform 160ms ease;
 }
 
-// The outgoing half of the swap. The incoming half is not here: a mounting chart animates itself
-// in, and a CSS fade layered on top of that would fight it.
+// The outgoing half. It leaves the way the reader is travelling — pick a chart to the right of the
+// current one and the old one exits left, so the four read as a strip you move along rather than
+// four slides fading in one spot.
 .chart-stage.is-leaving {
   opacity: 0;
-  transform: translateY(6px);
+}
+
+.chart-stage.is-leaving.to-left {
+  transform: translateX(-24px);
+}
+
+.chart-stage.is-leaving.to-right {
+  transform: translateX(24px);
+}
+
+/**
+ * The incoming half, on a fresh node.
+ *
+ * A CSS animation replays only when it starts on a newly rendered element — re-adding a class that
+ * is already present does nothing, which is how an entrance ends up working once and never again.
+ * The `@switch` mints a new wrapper per pick, so this is guaranteed its first frame.
+ *
+ * It carries the frame in and stops. The marks' own entrance is the chart's, and a longer CSS fade
+ * laid over the top would mute exactly the part worth watching.
+ */
+.chart-enter {
+  animation: chart-enter-right 240ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.chart-enter.from-left {
+  animation-name: chart-enter-left;
+}
+
+@keyframes chart-enter-right {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes chart-enter-left {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .chart-stage {
     transition: none;
+  }
+
+  .chart-enter {
+    animation: none;
   }
 }
 

@@ -136,6 +136,19 @@ export interface ChartProps<TRow = Record<string, unknown>> {
   animate?: boolean;
   /** Animation length in ms. Default 600. */
   duration?: number;
+  /**
+   * Bring the marks in one after another instead of all at once. `true` is a good default spread;
+   * a number from 0 to 0.8 sets it exactly.
+   *
+   * The marks arrive in reading order — left to right along an axis, clockwise around a pie — so
+   * the motion traces the direction the chart is meant to be read in, rather than being decoration
+   * laid over it.
+   *
+   * A SHARE of the run rather than a delay per mark, so the choreography costs the same at twelve
+   * bars and at three hundred candles. Per-mark delays are how the same feature elsewhere turns a
+   * long series into a wait.
+   */
+  stagger?: boolean | number;
 
   /** Accessible name. Falls back to `title`, then to a description of the series. */
   ariaLabel?: string;

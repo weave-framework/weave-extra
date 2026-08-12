@@ -231,6 +231,11 @@
     <code>prefers-reduced-motion</code> turns it off without being asked rather than merely speeding
     it up.
   </p>
+  <p>
+    <code>stagger</code> brings the marks in one after another instead of together — see
+    <a href="#chart-recipes">§22</a>, which has a switch for it. It is a share of the run rather than
+    a delay per mark, so the choreography costs the same at twelve bars and at three hundred candles.
+  </p>
   <div class="demo-controls">
     <Button variant="ghost" on:click={{ shuffle }}>Change the data</Button>
     <Button variant="ghost" on:click={{ toggleAnimation }}>
@@ -435,7 +440,10 @@
     re-find after each use.
   </p>
   <div class="demo-controls">
-    <span class="demo-note">{{ chosenNote() }}</span>
+    <Button variant="ghost" on:click={{ toggleStagger }}>
+      @if (staggered()) { Bring them in all at once } @else { Choreograph them }
+    </Button>
+    <span class="demo-note">stagger: <code>{{ staggerText() }}</code> · {{ chosenNote() }}</span>
   </div>
   <Demo>
     <!-- #region cr-swap -->
@@ -450,20 +458,28 @@
     <div class={{ stageClass() }}>
       @switch (chosen()) {
         @case ('revenue') {
-          <Chart type="bar" data={{ rows }} x="month" y="revenue"
-                 valueFormat={{ money }} height={{ 300 }} yLabel="Revenue" />
+          <div class={{ enterClass() }}>
+            <Chart type="bar" data={{ rows }} x="month" y="revenue" stagger={{ staggered() }}
+                   valueFormat={{ money }} height={{ 300 }} yLabel="Revenue" />
+          </div>
         }
         @case ('load') {
-          <Chart data={{ readings }} x="at" series={{ swapSeries }}
-                 height={{ 300 }} grid="y" />
+          <div class={{ enterClass() }}>
+            <Chart data={{ readings }} x="at" series={{ swapSeries }} stagger={{ staggered() }}
+                   height={{ 300 }} grid="y" />
+          </div>
         }
         @case ('share') {
-          <Chart type="donut" data={{ share }} x="product" y="revenue"
-                 maxSlices={{ 6 }} valueFormat={{ money }} height={{ 300 }} />
+          <div class={{ enterClass() }}>
+            <Chart type="donut" data={{ share }} x="product" y="revenue" stagger={{ staggered() }}
+                   maxSlices={{ 6 }} valueFormat={{ money }} height={{ 300 }} />
+          </div>
         }
         @case ('market') {
-          <Chart type="candlestick" data={{ sessions }} x="day" ohlc={{ ohlc }} volume="v"
-                 valueFormat={{ price }} height={{ 300 }} />
+          <div class={{ enterClass() }}>
+            <Chart type="candlestick" data={{ sessions }} x="day" ohlc={{ ohlc }} volume="v"
+                   stagger={{ staggered() }} valueFormat={{ price }} height={{ 300 }} />
+          </div>
         }
       }
     </div>
