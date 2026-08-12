@@ -29,10 +29,18 @@ export type Range = readonly [number, number];
 /** Fewer than this and the marks are wider than the data is informative. */
 const MIN_BARS = 5;
 
-/** Keep a window inside the data and above the minimum width. */
+/**
+ * Keep a window inside the data and above the minimum width.
+ *
+ * Both ends come back as WHOLE bars. The start was already rounded and the width was not, so a
+ * zoom returned things like `[50, 149.5]` — and a range is documented as inclusive row indices,
+ * handed to the caller through `onRangeChange` and, for a controlled chart, likely to end up in a
+ * URL. Half a row is not an index. It also quietly cost a bar on every other zoom step, because
+ * slicing with a fractional bound truncates.
+ */
 export function clampRange(range: Range, count: number): Range {
   if (count <= 0) return [0, 0];
-  const width: number = Math.max(MIN_BARS - 1, Math.min(count - 1, range[1] - range[0]));
+  const width: number = Math.round(Math.max(MIN_BARS - 1, Math.min(count - 1, range[1] - range[0])));
   let start: number = Math.max(0, Math.min(count - 1 - width, Math.round(range[0])));
   if (start < 0) start = 0;
   return [start, Math.min(count - 1, start + width)];

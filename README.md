@@ -56,10 +56,16 @@ pnpm run examples
 ```bash
 pnpm install
 pnpm run typecheck
+pnpm test
 ```
 
 `pnpm run typecheck` (plain `tsc`) is the check that counts. `weave check` does not type-check this
 package's `src` — it reports no errors on a file containing an identifier that exists nowhere.
+
+`pnpm test` builds first and runs `node --test` against `dist/`, with no framework and no config.
+Testing the built output rather than the source is deliberate: it is what consumers get, so a build
+that drops a module fails here rather than at someone else's install. See
+[test/README.md](test/README.md) for what earns a test.
 
 ## Publishing
 

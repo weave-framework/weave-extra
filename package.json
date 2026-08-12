@@ -98,6 +98,7 @@
     "examples": "node examples/tools/gen-snippets.mjs && weave dev --config examples/weave.config.ts",
     "examples:build": "node examples/tools/gen-snippets.mjs && weave build --config examples/weave.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && node --test \"test/*.test.mjs\"",
     "check": "weave check",
     "verify:styles": "node tools/verify-styles.mjs",
     "verify:authorship": "node tools/verify-authorship.mjs"
