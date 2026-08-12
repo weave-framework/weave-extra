@@ -112,7 +112,16 @@ export interface ChartProps<TRow = Record<string, unknown>> {
    */
   zero?: boolean;
 
-  /** Height in px. Width always follows the container. Default 260. */
+  /**
+   * Strip everything but the marks — no axes, no grid, no legend, no tooltip, no margins.
+   *
+   * A sparkline is a chart sized to sit in a line of text, and its job is shape rather than value:
+   * axes on something 40px tall are unreadable furniture that crowd out the only thing being said.
+   * Default height drops to 40.
+   */
+  sparkline?: boolean;
+
+  /** Height in px. Width always follows the container. Default 260, or 40 for a sparkline. */
   height?: number;
   /** Grid lines. Default `'y'` — value gridlines help, category ones are noise. */
   grid?: boolean | 'x' | 'y' | 'both';

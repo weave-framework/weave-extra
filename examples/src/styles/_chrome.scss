@@ -510,3 +510,12 @@ $topbar-h: var(--weave-toolbar-height, 52px);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Chart page: the row of KPI tiles ── */
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-4, 16px);
+  inline-size: 100%;
+}

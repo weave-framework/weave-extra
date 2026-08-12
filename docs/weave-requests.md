@@ -8,7 +8,7 @@ package installs from npm; nothing here is linked.
 W-1 … W-3 were reported earlier and applied (`c10be506`, `d69a8f77`, `d1b7c6b0`). This file starts at
 W-4.
 
-**Status: all five are released and verified against this package from npm.**
+**Status: W-4 … W-8 are released and verified against this package from npm. W-9 is open against 3.0.0.**
 
 | | fix | weave commit |
 |---|---|---|
@@ -17,6 +17,7 @@ W-4.
 | W-6 | `Table` — a second header row | `ac43c6ff` |
 | W-7 | `Table` — a virtual body | `4962a963` |
 | W-8 | a generic component's props no longer collapse to `unknown` | `1fb0dd35` (+ `af4343a0`, the accessors it exposed) |
+| W-9 | a numeric separator in a template expression is parsed as an identifier | open |
 
 One more was needed to consume them: `e502f448` (compiler — a comment between the pieces of a split
 template is not a non-static template). Without it the published CLI cannot parse the new `Table`
@@ -283,3 +284,33 @@ names `Select<Option>` again, which is what makes its option shape checked at al
 
 Verified before and after against the shipped declaration — all four reported cases reproduced on
 2.2.0 and behave on 3.0.0.
+
+---
+
+## W-9 — a numeric separator in a template expression is parsed as an identifier
+
+`@weave-framework/compiler` 3.0.0. A template expression containing a JavaScript numeric separator
+fails to build:
+
+```html
+<Metric value={{ 182_400 }} />
+```
+
+```
+X [ERROR] Expected ";" but found "ctx"
+    examples/src/pages/chart.ts:326:69:
+      326 │ ... value() { return 182ctx._400; }, get delta() { retu...
+```
+
+The expression rewriter, which prefixes bare identifiers with `ctx.`, splits `182_400` at the
+underscore and treats `_400` as a name to qualify — emitting `182ctx._400`.
+
+`182_400` is valid ECMAScript (ES2021) and is exactly the form a person writes for a number they
+want to be legible, so a chart or a metric with a literal amount in the markup is where this lands.
+It is a lexing bug rather than a scoping one: the identifier scanner needs to refuse a match that
+begins immediately after a digit.
+
+**Reproduction**: any `{{ }}` expression containing `1_000`. The same literal in the component's
+`.ts` compiles fine — it is only the template path.
+
+**Workaround**: write the literal without separators in markup, or move it into `setup()`.

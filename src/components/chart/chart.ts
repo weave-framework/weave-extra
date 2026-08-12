@@ -242,6 +242,7 @@ export interface ChartContext<TRow> {
   radial: () => RadialView;
   onSliceEnter: (index: number) => void;
 
+  isSpark: () => boolean;
   isFinancial: () => boolean;
   financial: () => FinancialView;
   onWheel: (event: WheelEvent) => void;
@@ -288,7 +289,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     });
   });
   const width = (): number => measured();
-  const height = (): number => props.height ?? 260;
+  const height = (): number => props.height ?? (props.sparkline ? 40 : 260);
 
   /* ── data ── */
   const rows: Computed<readonly TRow[]> = computed<readonly TRow[]>(() =>
@@ -325,7 +326,8 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       dash: config.dash ?? seriesDash(index),
       curve: (config.curve ?? 'linear') as Curve,
       // Dots stop helping once they touch: at more than ~60 points they are a texture, not marks.
-      points: config.points ?? rows().length <= 60,
+      // A sparkline is read as a shape; dots on one are texture. Off unless asked for.
+      points: config.points ?? (!props.sparkline && rows().length <= 60),
       fillOpacity: config.fillOpacity ?? 0.15,
       stack: config.stack,
       axis: config.axis ?? 'left',
@@ -419,16 +421,23 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     return scale.ticks().map(scale.format);
   });
 
-  const plot: Computed<PlotBox> = computed<PlotBox>(() =>
-    layout({
-      width: width(),
-      height: height(),
+  const plot: Computed<PlotBox> = computed<PlotBox>(() => {
+    const w: number = width();
+    const h: number = height();
+    // A sparkline gives its whole box to the marks. One pixel of inset, so a 2px stroke is not
+    // sliced in half by the edge it sits on.
+    if (props.sparkline) {
+      return { left: 1, top: 1, width: Math.max(1, w - 2), height: Math.max(1, h - 2), right: w - 1, bottom: h - 1 };
+    }
+    return layout({
+      width: w,
+      height: h,
       leftLabels: yLabels(),
       bottomLabels: xLabels(),
       xTitle: props.xLabel,
       yTitle: props.yLabel,
-    })
-  );
+    });
+  });
 
   const yScale: Computed<Scale<number>> = computed(() => {
     const box: PlotBox = plot();
@@ -1029,7 +1038,8 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     },
     // The accessible fallback is a real table, not a paragraph describing one. Capped, because a
     // 5,000-row table read aloud is not access either.
-    showTable: (): boolean => rows().length > 0 && rows().length <= 100,
+    // No table under a sparkline: it sits inline in a sentence that already says what it is.
+    showTable: (): boolean => props.sparkline !== true && rows().length > 0 && rows().length <= 100,
     describedRows: (): { x: string; values: { label: string; value: string }[] }[] => {
       const scale: Scale<number> = probe();
       const format: (value: number) => string = props.valueFormat ?? scale.format;
@@ -1039,15 +1049,16 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
       }));
     },
 
-    grid: (): GridLine[] => grid(),
-    xTicks: (): AxisTick[] => xTicks(),
-    yTicks: (): AxisTick[] => yTicks(),
-    axisLines: (): GridLine[] => axisLines(),
+    grid: (): GridLine[] => (props.sparkline ? [] : grid()),
+    xTicks: (): AxisTick[] => (props.sparkline ? [] : xTicks()),
+    yTicks: (): AxisTick[] => (props.sparkline ? [] : yTicks()),
+    axisLines: (): GridLine[] => (props.sparkline ? [] : axisLines()),
     areas: (): PathMark[] => areas(),
     lines: (): PathMark[] => lines(),
     bars: (): BarMark[] => bars(),
     dots: (): DotMark[] => dots(),
 
+    isSpark: (): boolean => props.sparkline === true,
     isRadial: (): boolean => isRadial(),
     radial: (): RadialView => radial(),
     onSliceEnter: (index: number): void => {
@@ -1099,6 +1110,7 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     // A radial chart legends its SLICES; a cartesian one legends its series. Same control, same
     // toggle, different list — which is why the legend never had to know which chart it is in.
     showLegend: (): boolean =>
+      props.sparkline !== true &&
       props.legend !== false && (isRadial() ? sliceEntries().length > 1 : series().length > 1),
     legend: (): LegendEntry[] =>
       isRadial()
@@ -1124,7 +1136,9 @@ export function setup<TRow extends Record<string, unknown> = Record<string, unkn
     },
 
     tooltip: (): TooltipView | null =>
-      isRadial() ? radialTooltip() : isFinancial() ? financialTooltip() : tooltip(),
+      props.sparkline
+        ? null
+        : isRadial() ? radialTooltip() : isFinancial() ? financialTooltip() : tooltip(),
     crosshair: (): number | null => {
       if (isRadial()) return null;
       if (isFinancial()) {

@@ -8,7 +8,8 @@
 
 import { computed, signal, type Computed, type Signal } from '@weave-framework/runtime';
 import Button from '@weave-framework/ui/button';
-import Chart, { type ChartProps, type SeriesConfig } from '@weave-framework/extra/components/chart';
+import Chart, { type SeriesConfig } from '@weave-framework/extra/components/chart';
+import Metric from '@weave-framework/extra/components/metric';
 import Demo from '../lib/demo/demo.js';
 import CodeTabs from '../lib/code-tabs/code-tabs.js';
 
@@ -97,8 +98,22 @@ function makeSessions(count: number): Session[] {
 
 const SESSIONS: Session[] = makeSessions(120);
 
+export interface Point extends Record<string, unknown> {
+  t: number;
+  v: number;
+}
+
+/** Short series for the tiles — a sparkline is read as a shape, so 24 points is plenty. */
+function trend(from: number, drift: number): Point[] {
+  return Array.from({ length: 24 }, (_, i) => ({
+    t: i,
+    v: Math.round((from + drift * i + Math.sin(i / 2.4) * from * 0.06) * 100) / 100,
+  }));
+}
+
 export interface ChartPageContext {
   Chart: typeof Chart;
+  Metric: typeof Metric;
   Button: typeof Button;
   Demo: typeof Demo;
   CodeTabs: typeof CodeTabs;
@@ -106,6 +121,10 @@ export interface ChartPageContext {
   readings: Reading[];
   share: Share[];
   sessions: Session[];
+  revenueTrend: Point[];
+  churnTrend: Point[];
+  latencyTrend: Point[];
+  seatsTrend: Point[];
   ohlc: readonly ['o', 'h', 'l', 'c'];
   price: (value: number) => string;
   reshuffle: () => void;
@@ -122,6 +141,7 @@ export function setup(): ChartPageContext {
 
   return {
     Chart,
+    Metric,
     Button,
     Demo,
     CodeTabs,
@@ -129,6 +149,10 @@ export function setup(): ChartPageContext {
     readings: READINGS,
     share: SHARE,
     sessions: SESSIONS,
+    revenueTrend: trend(140_000, 2_400),
+    churnTrend: trend(3.1, 0.06),
+    latencyTrend: trend(240, -3.2),
+    seatsTrend: trend(610, 7),
     // #region chart-candles
     ohlc: ['o', 'h', 'l', 'c'] as const,
     price: (value: number): string => value.toFixed(2),

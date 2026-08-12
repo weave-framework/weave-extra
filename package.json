@@ -28,6 +28,10 @@
       "types": "./src/components/chart/chart.ts",
       "import": "./src/components/chart/chart.ts"
     },
+    "./components/metric": {
+      "types": "./src/components/metric/metric.ts",
+      "import": "./src/components/metric/metric.ts"
+    },
     "./plugins/table": {
       "types": "./src/plugins/table/index.ts",
       "import": "./src/plugins/table/index.ts"
@@ -77,6 +81,10 @@
       "./components/chart": {
         "types": "./dist/components/chart/chart.d.ts",
         "import": "./dist/components/chart/chart.js"
+      },
+      "./components/metric": {
+        "types": "./dist/components/metric/metric.d.ts",
+        "import": "./dist/components/metric/metric.js"
       },
       "./plugins/table": {
         "types": "./dist/plugins/table/index.d.ts",

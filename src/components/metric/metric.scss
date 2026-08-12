@@ -1,0 +1,99 @@
+// `<Metric>` — a KPI tile. Deliberately unframed: it is a block of type, and a dashboard puts it in
+// whatever card, grid cell or panel it already has. A component that brings its own border fights
+// every layout it is dropped into.
+
+.weave-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.weave-metric__label {
+  color: var(--fg-soft, #71727a);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  // A long label truncates rather than wrapping: two lines of label push the number out of
+  // alignment with its neighbours, and a row of tiles is read across, not down.
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weave-metric__row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.weave-metric__value {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.15;
+  // Tabular figures, so a value that ticks from 1.9k to 2.0k does not shuffle the digits beside it.
+  font-variant-numeric: tabular-nums;
+}
+
+.weave-metric__unit {
+  color: var(--fg-soft, #71727a);
+  font-size: 12px;
+}
+
+.weave-metric__delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-inline-start: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+// Tone follows MEANING, not sign — see `invert` in metric.ts. The arrow carries the direction as
+// well, so the tile still reads in greyscale and for a reader who cannot separate the two hues.
+.weave-metric__delta--good {
+  color: var(--weave-chart-up, #2f9e6a);
+}
+
+.weave-metric__delta--bad {
+  color: var(--weave-chart-down, #d1483f);
+}
+
+.weave-metric__delta--flat {
+  color: var(--fg-soft, #71727a);
+}
+
+.weave-metric__arrow {
+  font-size: 9px;
+}
+
+.weave-metric__note {
+  color: var(--fg-soft, #71727a);
+  font-size: 11px;
+}
+
+.weave-metric__track {
+  block-size: 4px;
+  margin-block: 6px 2px;
+  border-radius: 2px;
+  background: var(--field, #ecedf0);
+  overflow: hidden;
+}
+
+.weave-metric__fill {
+  block-size: 100%;
+  border-radius: 2px;
+  background: var(--accent, #4c6286);
+  transition: width 0.4s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .weave-metric__fill {
+    transition: none;
+  }
+}
+
+.weave-metric__spark {
+  margin-block-start: 6px;
+}

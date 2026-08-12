@@ -165,6 +165,42 @@
   </Demo>
   <CodeTabs id="chart-ohlc" />
 
+  <h2>Sparklines and tiles</h2>
+  <p>
+    <code>sparkline</code> strips a chart to its marks — no axes, no grid, no legend, no tooltip, no
+    margins. Axes on something 40px tall are unreadable furniture crowding out the only thing being
+    said, which is the shape.
+  </p>
+  <p>
+    <code>&lt;Metric&gt;</code> is the tile every dashboard rebuilds by hand, and rebuilds slightly
+    differently each time. It is not a chart, which is why it is not a <code>&lt;Chart&gt;</code>
+    type — but it composes one, so its sparkline is the same engine as everything above.
+  </p>
+  <p>
+    The judgement worth having is <strong><code>invert</code></strong>. A delta's colour follows its
+    <em>meaning</em>, not its sign: churn up 5% is bad, latency down 8% is good. A tile that paints
+    every rise green tells the reader the opposite of the truth on about half a real dashboard. The
+    arrow carries the direction too, so the tile still reads in greyscale.
+  </p>
+  <Demo>
+    <!-- #region chart-metrics -->
+    <div class="metric-row">
+      <Metric label="Revenue" value={{ 182400 }} delta={{ 12.4 }} deltaLabel="vs last month"
+              data={{ revenueTrend }} x="t" y="v" />
+
+      <Metric label="Churn" value={{ 4.6 }} unit="%" delta={{ 5.2 }} deltaLabel="vs last month"
+              invert data={{ churnTrend }} x="t" y="v" />
+
+      <Metric label="p95 latency" value={{ 168 }} unit="ms" delta={{ -8.1 }} deltaLabel="vs last week"
+              invert data={{ latencyTrend }} x="t" y="v" sparkType="line" />
+
+      <Metric label="Seats used" value={{ 771 }} target={{ 1000 }} targetLabel="of"
+              data={{ seatsTrend }} x="t" y="v" sparkType="bar" />
+    </div>
+    <!-- #endregion -->
+  </Demo>
+  <CodeTabs id="chart-metrics" />
+
   <h2>What it does without being asked</h2>
   <p>
     <strong>Responsive</strong> — the width follows the container through a <code>ResizeObserver</code>;
