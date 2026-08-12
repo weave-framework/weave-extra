@@ -17,7 +17,7 @@ W-4.
 | W-6 | `Table` — a second header row | `ac43c6ff` |
 | W-7 | `Table` — a virtual body | `4962a963` |
 | W-8 | a generic component's props no longer collapse to `unknown` | `1fb0dd35` (+ `af4343a0`, the accessors it exposed) |
-| W-9 | a numeric separator in a template expression is parsed as an identifier | open |
+| W-9 | every non-decimal numeric literal in a template expression is mis-lexed | open |
 
 One more was needed to consume them: `e502f448` (compiler — a comment between the pieces of a split
 template is not a non-static template). Without it the published CLI cannot parse the new `Table`
@@ -287,30 +287,32 @@ Verified before and after against the shipped declaration — all four reported 
 
 ---
 
-## W-9 — a numeric separator in a template expression is parsed as an identifier
+## W-9 — every non-decimal numeric literal in a template expression is mis-lexed
 
-`@weave-framework/compiler` 3.0.0. A template expression containing a JavaScript numeric separator
-fails to build:
+**Full specification: [w-9-numeric-literals.md](w-9-numeric-literals.md)** — written to be handed to
+the framework repo as-is.
 
-```html
-<Metric value={{ 182_400 }} />
+The expression tokenizer in `packages/compiler/src/scope.ts` has no number-literal branch. Digits
+fall through to the copy-a-character default, so the first character inside a literal that can START
+an identifier — `_`, `x`, `b`, `o`, `e`, `n` — begins one, and the scope pass qualifies it against
+the component context:
+
+```
+182_400  ->  182ctx._400          0xFF   ->  0ctx.xFF        1e3  ->  1ctx.e3
+0b1010   ->  0ctx.b1010           0o17   ->  0ctx.o17        9n   ->  9ctx.n
 ```
 
-```
-X [ERROR] Expected ";" but found "ctx"
-    examples/src/pages/chart.ts:326:69:
-      326 │ ... value() { return 182ctx._400; }, get delta() { retu...
-```
+Only a plain integer and a plain decimal survive. All of these are valid ECMAScript, and `0xFF`
+needs no separator and no unusual style.
 
-The expression rewriter, which prefixes bare identifiers with `ctx.`, splits `182_400` at the
-underscore and treats `_400` as a name to qualify — emitting `182ctx._400`.
+**Correction to the first version of this entry**, which reported it as a numeric-SEPARATOR bug
+because that is the form that happened to bite. It is every non-decimal literal, and the narrow
+reading would have been fixed by a change that left `0xFF` broken.
 
-`182_400` is valid ECMAScript (ES2021) and is exactly the form a person writes for a number they
-want to be legible, so a chart or a metric with a literal amount in the markup is where this lands.
-It is a lexing bug rather than a scoping one: the identifier scanner needs to refuse a match that
-begins immediately after a digit.
+Verified through the compiler's own API rather than by reading it. The obvious first probe reports
+the compiler as healthy: `compileTemplate` leaves unknown names bare, so the split stays invisible
+there. A real component compiles in ctx mode, where every unbound identifier becomes `ctx.<name>` —
+so any reproduction has to go through `compileComponent`.
 
-**Reproduction**: any `{{ }}` expression containing `1_000`. The same literal in the component's
-`.ts` compiles fine — it is only the template path.
-
-**Workaround**: write the literal without separators in markup, or move it into `setup()`.
+**Workaround here**: `182400` in the markup, or the literal in `setup()` and a name in the template.
+The same literal in a `.ts` file compiles correctly; it is only the template path.
