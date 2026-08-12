@@ -1,6 +1,6 @@
 {
   "name": "@weave-framework/extra",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Extras for Weave — additional components, component extensions and plugins built on @weave-framework/ui.",
   "type": "module",
   "sideEffects": [

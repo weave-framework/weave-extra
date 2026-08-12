@@ -10,9 +10,11 @@ Nothing is exported from the package root — every entry has its own subpath, s
 for what it names:
 
 ```ts
-import DataGrid from '@weave-framework/extra/components/data-grid';
-import DataGrid from '@weave-framework/extra/extends/data-grid';
-import { dataGrid } from '@weave-framework/extra/plugins/data-grid';
+import Chart from '@weave-framework/extra/components/chart';
+import Metric from '@weave-framework/extra/components/metric';
+import Split from '@weave-framework/extra/components/split';
+import SplitPane from '@weave-framework/extra/components/split-pane';
+import { tablePlugin } from '@weave-framework/extra/plugins/table';
 ```
 
 | Bucket | What belongs there |
@@ -27,14 +29,17 @@ Each bucket's README states its layout and rules.
 
 | Extra | Reference |
 |---|---|
+| `components/chart` | [docs/chart.md](docs/chart.md) — one component for every chart: bars, lines, areas, pie and donut, candlesticks and OHLC, plus the scales, animation clock, palette and morphing it is built from |
+| `components/metric` | [docs/chart.md §11](docs/chart.md#11-sparklines-and-metric) — the KPI tile, and why a delta's colour follows its meaning rather than its sign |
 | `plugins/table` | [docs/table-plugin.md](docs/table-plugin.md) — column configuration, cell types, actions, filters, selection, paging, and the rules a cell must follow |
 
-Live counterparts run in the examples app (`pnpm run examples`): **Table recipes** is one grid per
-feature with its own source underneath; **Table plugin** is the same thing assembled.
+Live counterparts run in the examples app (`pnpm run examples`). Each has a pair of pages: the
+**recipes** one is a single feature per section with its own complete source underneath, and the
+other is the same surface assembled the way a real screen uses it.
 
 ## Requirements
 
-`@weave-framework/runtime` and `@weave-framework/ui` (>= 2.1) are **peer** dependencies — this package
+`@weave-framework/runtime` and `@weave-framework/ui` (>= 3.0) are **peer** dependencies — this package
 never bundles its own copy.
 
 ## Examples
