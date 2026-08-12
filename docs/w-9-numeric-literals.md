@@ -5,6 +5,10 @@
 **Reported from:** `@weave-framework/extra` — `<Metric value={{ 182_400 }} />`
 **Severity:** build failure on valid ECMAScript; hex, exponent, BigInt, binary, octal and separators
 
+> **Fixed in `a4b82655`** — a real number token in the tokenizer, which is the route this document
+> argued for. Not yet released: 3.0.0 on npm still has the bug. Kept as submitted; what was verified
+> against the fix is at the end under [Outcome](#outcome).
+
 ---
 
 ## Summary
@@ -144,3 +148,29 @@ still broken, which is how the narrow reading of this bug survives.
 Write the literal in `setup()` and reference it by name, or spell it in a form the tokenizer
 survives — `182400`, `255`, `1000`. Nothing needs to change in a `.ts` file: the same literal
 compiles correctly there. It is only the template path.
+
+---
+
+## Outcome
+
+Fixed in `a4b82655`, unreleased at the time of writing.
+
+The route taken is the one argued for above — a real numeric token consumed before the identifier
+branch (`scanNumber` in `scope.ts`), rather than the narrow "refuse an identifier that follows a
+digit". So the scanner now knows where a number ends, and `1 .toString()` and `0xFF.toString(16)`
+work as a consequence rather than as separate patches.
+
+All five acceptance criteria verified against the framework checkout's build, 32 checks:
+
+1. Every row of the table emits unchanged, plus `.5`, `017`, `0xFFn`, `1n` and `0b1010_1010`.
+2. The discriminating case passes. In a component that HAS bindings named `n`, `e3` and `_400`:
+   `{{ n }}` → `ctx.n`, `{{ e3 }}` → `ctx.e3`, `{{ _400 }}` → `ctx._400`, while `{{ 9n }}` stays
+   `9n`, `{{ 1e3 }}` stays `1e3` and `{{ 182_400 }}` stays `182_400`. This is the pair that a fix
+   keyed on scope rather than on lexing would have got wrong in one direction or the other.
+3. `1 .toString()`, `(0.5).toFixed(1)` and `0xFF.toString(16)` compile.
+4. `'1_000'` is untouched; `` `0xFF ${a}` `` rewrites only the interpolation, to `` `0xFF ${ctx.a}` ``.
+5. Segments line up: `182_400 + total` maps as one verbatim run `"182_400 + "` plus `"total"` — the
+   literal is a single run, as predicted.
+
+The page that produced the original report compiles clean through the fixed compiler, with the
+literal surviving verbatim.

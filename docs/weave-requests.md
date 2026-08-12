@@ -8,7 +8,8 @@ package installs from npm; nothing here is linked.
 W-1 … W-3 were reported earlier and applied (`c10be506`, `d69a8f77`, `d1b7c6b0`). This file starts at
 W-4.
 
-**Status: W-4 … W-8 are released and verified against this package from npm. W-9 is open against 3.0.0.**
+**Status: W-4 … W-8 are released and verified against this package from npm. W-9 is fixed in the
+framework and awaiting a release; this package still installs 3.0.0, which has the bug.**
 
 | | fix | weave commit |
 |---|---|---|
@@ -17,7 +18,7 @@ W-4.
 | W-6 | `Table` — a second header row | `ac43c6ff` |
 | W-7 | `Table` — a virtual body | `4962a963` |
 | W-8 | a generic component's props no longer collapse to `unknown` | `1fb0dd35` (+ `af4343a0`, the accessors it exposed) |
-| W-9 | every non-decimal numeric literal in a template expression is mis-lexed | open |
+| W-9 | every non-decimal numeric literal in a template expression is mis-lexed | `a4b82655` — fixed, not yet released |
 
 One more was needed to consume them: `e502f448` (compiler — a comment between the pieces of a split
 template is not a non-static template). Without it the published CLI cannot parse the new `Table`
@@ -314,5 +315,22 @@ the compiler as healthy: `compileTemplate` leaves unknown names bare, so the spl
 there. A real component compiles in ctx mode, where every unbound identifier becomes `ctx.<name>` —
 so any reproduction has to go through `compileComponent`.
 
-**Workaround here**: `182400` in the markup, or the literal in `setup()` and a name in the template.
-The same literal in a `.ts` file compiles correctly; it is only the template path.
+### Fixed in `a4b82655`, not yet published
+
+Verified against the framework checkout's build, all 32 checks from the spec's acceptance criteria:
+
+- every literal form emits unchanged — `182_400`, `1_000.5`, `0xFF`, `0xDE_AD`, `0b1010`,
+  `0b1010_1010`, `0o17`, `0o1_7`, `1e3`, `1e+3`, `1.5e-3`, `9007199254740993n`, `0xFFn`, `1n`, `.5`,
+  `017`;
+- the discriminating case passes: in a component that HAS bindings named `n`, `e3` and `_400`,
+  `{{ n }}` → `ctx.n` while `{{ 9n }}` stays `9n` and `{{ 182_400 }}` stays `182_400`;
+- `1 .toString()`, `(0.5).toFixed(1)` and `0xFF.toString(16)` compile;
+- a literal inside a string is untouched, and `` `0xFF ${a}` `` still rewrites only the interpolation;
+- source segments line up — `182_400 + total` maps as one verbatim run `"182_400 + "` plus `"total"`,
+  which is criterion 5.
+
+The page that found this compiles clean through the fixed compiler. It keeps `182400` in the markup
+meanwhile, because this package installs the published 3.0.0 and that still has the bug.
+
+**Workaround until a release**: `182400` in the markup, or the literal in `setup()` and a name in the
+template. The same literal in a `.ts` file compiles correctly; it is only the template path.
